@@ -106,6 +106,6 @@ if gradle_properties.is_file():
         and not line.strip().startswith("android.builtInKotlin=")
     ]
     lines.extend(["android.newDsl=false", "android.builtInKotlin=false"])
-    gradle_properties.write_text("\\n".join(lines) + "\\n", encoding="utf-8")
+    gradle_properties.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 print("Android manifest and Gradle configuration patched.")
