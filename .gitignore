@@ -1,0 +1,21 @@
+# Flutter / Dart
+.dart_tool/
+.packages
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+coverage/
+
+# Android local / signing files
+android/.gradle/
+android/local.properties
+android/key.properties
+android/app/*.jks
+*.jks
+keystore/
+keystore.b64
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
