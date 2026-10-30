@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 class SupabaseConfig {
   static const url = String.fromEnvironment('SUPABASE_URL');
   static const anonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
+  /// OAuth *Web application* client ID (used by native Google sign-in to mint the ID token).
+  static const googleWebClientId = String.fromEnvironment('GOOGLE_WEB_CLIENT_ID');
   static bool get configured => url.isNotEmpty && anonKey.isNotEmpty;
 }
 
