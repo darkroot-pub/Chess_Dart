@@ -1,0 +1,41 @@
+# DarkChess (Flutter Android)
+
+DarkChess is a Flutter chess app with offline play, Stockfish analysis, puzzles, lessons,
+profiles, and optional Supabase multiplayer.
+
+## Build an APK with GitHub Actions
+
+1. Create a GitHub repository and upload the **contents of this folder** to its root.
+2. Open **Actions** and run **Build DarkChess APK**, or push a commit to `main`/`master`.
+3. Open the completed workflow run and download the `DarkChess-Android-APKs` artifact.
+4. For most Android phones, install `app-arm64-v8a-release.apk`.
+
+The workflow generates the Android Gradle project when it is missing, patches the app label,
+Internet permission, minimum Android API, and release signing configuration, then builds
+split APKs. No Android folder needs to be committed.
+
+### Optional GitHub Actions secrets
+
+Add these under **Repository → Settings → Secrets and variables → Actions**:
+
+- `SUPABASE_URL` — Supabase project URL (optional; online features remain disabled if absent).
+- `SUPABASE_ANON_KEY` — Supabase publishable/anon key (optional).
+- `KEYSTORE_BASE64` — Base64 contents of your own release keystore.
+- `KEYSTORE_PASSWORD` — keystore password.
+- `KEY_ALIAS` — key alias.
+- `KEY_PASSWORD` — key password.
+
+If all four signing secrets are not present, the workflow still builds a release-mode APK
+using the Android debug signing key. This is suitable for testing, not publishing updates
+to the Play Store. Keep your release keystore and passwords private and backed up.
+
+## Important signing-key security notice
+
+A previous project archive contained a release keystore and its password information.
+Treat that key as compromised: do not use it for a Play Store release or as a trusted
+distribution key. Generate a new keystore and keep it outside the repository. Never upload
+`.jks`, `.b64`, or `key.properties` files to GitHub.
+
+## Supabase
+
+See `SETUP_SUPABASE.md` and `supabase/schema.sql` for the backend setup.
