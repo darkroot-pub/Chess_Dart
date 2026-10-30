@@ -93,6 +93,22 @@ jobs:
       - name: Resolve Flutter dependencies
         run: flutter pub get
 
+      # The stockfish 1.8.1 Android Gradle file still calls jcenter().
+      # Gradle 9 no longer provides that repository helper, so replace it
+      # in the downloaded package cache before Gradle configures the plugin.
+      - name: Patch legacy Stockfish Android repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          STOCKFISH_GRADLE="$(find "$HOME/.pub-cache/hosted/pub.dev" -type f -path '*/stockfish-*/android/build.gradle' -print -quit)"
+          if [[ -n "$STOCKFISH_GRADLE" ]]; then
+            sed -i 's/jcenter()/mavenCentral()/g' "$STOCKFISH_GRADLE"
+            echo "Patched legacy jcenter() in: $STOCKFISH_GRADLE"
+          else
+            echo "Stockfish Android Gradle file not found in pub cache."
+            exit 1
+          fi
+
       - name: Analyze Dart sources
         run: flutter analyze --no-pub
         continue-on-error: true

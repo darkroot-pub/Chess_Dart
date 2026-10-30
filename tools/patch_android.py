@@ -93,4 +93,16 @@ else:
     g = re.sub(r'minSdkVersion\s+flutter\.minSdkVersion', 'minSdkVersion 24', g)
 
 gradle.write_text(g, encoding="utf-8")
+
+# AGP 9 compatibility: keep the legacy DSL available for Flutter plugins
+# that have not migrated yet (including the Stockfish Android plugin).
+gradle_properties = root / "android" / "gradle.properties"
+if gradle_properties.is_file():
+    props = gradle_properties.read_text(encoding="utf-8")
+    for setting in ("android.newDsl=false", "android.builtInKotlin=false"):
+        key = setting.split("=", 1)[0]
+        props = re.sub(rf"(?m)^\\s*{re.escape(key)}\\s*=.*\\n?", "", props)
+        props = props.rstrip() + "\\n" + setting + "\\n"
+    gradle_properties.write_text(props, encoding="utf-8")
+
 print("Android manifest and Gradle configuration patched.")
