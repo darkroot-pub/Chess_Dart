@@ -25,11 +25,26 @@ class SupabaseService {
   User? get user => available ? client.auth.currentUser : null;
   bool get signedIn => user != null;
 
-  Future<void> signUp(String email, String password, String username) async {
-    await client.auth.signUp(email: email, password: password, data: {'username': username});
+  /// Creates the account and guarantees a session afterwards. Returns true when signed in,
+  /// false when the project requires e-mail confirmation first (no session can exist yet).
+  Future<bool> signUp(String email, String password, String username) async {
+    final res = await client.auth.signUp(email: email, password: password, data: {'username': username});
+    if (res.session != null || client.auth.currentSession != null) return true;
+    // No session came back: sign in with the same credentials (works when confirmation is off).
+    try {
+      await client.auth.signInWithPassword(email: email, password: password);
+      return true;
+    } on AuthException catch (e) {
+      final m = e.message.toLowerCase();
+      if (m.contains('confirm')) return false;
+      rethrow;
+    }
   }
 
   Future<void> signIn(String email, String password) => client.auth.signInWithPassword(email: email, password: password);
+  static const oauthRedirect = 'io.darkchess.app://login-callback/';
+  /// Opens Google's consent page in the browser; the session arrives via the deep link.
+  Future<void> signInGoogle() => client.auth.signInWithOAuth(OAuthProvider.google, redirectTo: oauthRedirect);
   Future<void> signInGuest() => client.auth.signInAnonymously();
   Future<void> signOut() => client.auth.signOut();
 
@@ -46,7 +61,9 @@ class SupabaseService {
 
   Future<List<Map<String, dynamic>>> onlinePlayers() async {
     final since = DateTime.now().toUtc().subtract(const Duration(minutes: 3)).toIso8601String();
-    final r = await client.from('profiles').select('id,username,rating,games_played').gt('last_seen', since).neq('id', user!.id).order('rating', ascending: false).limit(50);
+    final uid = user?.id;
+    if (uid == null) return [];
+    final r = await client.from('profiles').select('id,username,rating,games_played').gt('last_seen', since).neq('id', uid).order('rating', ascending: false).limit(50);
     return List<Map<String, dynamic>>.from(r);
   }
 

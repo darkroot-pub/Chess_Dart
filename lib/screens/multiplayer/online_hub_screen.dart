@@ -22,9 +22,16 @@ class _OnlineHubScreenState extends State<OnlineHubScreen> {
   List<Map<String, dynamic>> players = [];
   Timer? _t;
 
+  StreamSubscription? _authSub;
+
   @override
   void initState() {
     super.initState();
+    if (sb.available) {
+      _authSub = sb.client.auth.onAuthStateChange.listen((d) {
+        if (d.session != null && mounted) { setState(() => error = null); _refresh(); }
+      });
+    }
     if (sb.available && sb.signedIn) _refresh();
     _t = Timer.periodic(const Duration(seconds: 20), (_) { if (mounted && sb.signedIn) _refresh(); });
   }
@@ -32,10 +39,12 @@ class _OnlineHubScreenState extends State<OnlineHubScreen> {
   @override
   void dispose() {
     _t?.cancel();
+    _authSub?.cancel();
     super.dispose();
   }
 
   Future<void> _refresh() async {
+    if (!sb.signedIn) return;
     try {
       await sb.heartbeat();
       final p = await sb.onlinePlayers();
@@ -47,12 +56,13 @@ class _OnlineHubScreenState extends State<OnlineHubScreen> {
 
   Future<void> _run(Future<void> Function() f) async {
     setState(() { busy = true; error = null; });
+    String? err;
     try {
       await f();
     } catch (e) {
-      error = e is AuthException ? e.message : '$e';
+      err = e is AuthException ? e.message : '$e';
     }
-    if (mounted) setState(() => busy = false);
+    if (mounted) setState(() { busy = false; if (err != null) error = err; });
   }
 
   void _openGame(Map<String, dynamic> g) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => OnlineGameScreen(gameId: g['id'])));
@@ -90,7 +100,11 @@ class _OnlineHubScreenState extends State<OnlineHubScreen> {
         ElevatedButton(
           onPressed: busy ? null : () => _run(() async {
             if (signUp) {
-              await sb.signUp(email.text.trim(), pass.text, name.text.trim().isEmpty ? 'Player${DateTime.now().millisecond}' : name.text.trim());
+              final ok = await sb.signUp(email.text.trim(), pass.text, name.text.trim().isEmpty ? 'Player${DateTime.now().millisecond}' : name.text.trim());
+              if (!ok) {
+                if (mounted) setState(() { signUp = false; error = 'Account created. Please confirm your e-mail, then sign in.'; });
+                return;
+              }
             } else {
               await sb.signIn(email.text.trim(), pass.text);
             }
@@ -100,6 +114,8 @@ class _OnlineHubScreenState extends State<OnlineHubScreen> {
         ),
         TextButton(onPressed: () => setState(() => signUp = !signUp), child: Text(signUp ? 'I already have an account' : 'Create a new account')),
         const Divider(),
+        OutlinedButton.icon(icon: const Icon(Icons.g_mobiledata, size: 28), label: const Text('Continue with Google'), onPressed: busy ? null : () => _run(() async { await sb.signInGoogle(); })),
+        const SizedBox(height: 8),
         OutlinedButton(onPressed: busy ? null : () => _run(() async { await sb.signInGuest(); await _refresh(); }), child: const Text('Continue as guest')),
       ]);
 

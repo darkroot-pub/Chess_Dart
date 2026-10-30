@@ -49,3 +49,11 @@ Install the APK on two phones (or phone + emulator), sign up two accounts, press
 
 Known limits: clocks use the phone clock for display only; the server decides timeouts. "Online players" shows
 players active in the last 3 minutes; there is no direct challenge/invite yet (use private room codes).
+
+
+## Google sign-in
+1. Google Cloud Console → APIs & Services → Credentials → Create **OAuth client ID** → type **Web application**.
+   Authorized redirect URI: `https://<YOUR-PROJECT-REF>.supabase.co/auth/v1/callback`.
+2. Supabase → Authentication → Sign In / Providers → **Google**: enable, paste Client ID and Secret, save.
+3. Supabase → Authentication → URL Configuration → **Redirect URLs**: add `io.darkchess.app://login-callback/`.
+4. Rebuild (the CI runs `tools/patch_android.py`, which registers the `io.darkchess.app://login-callback` deep link).
