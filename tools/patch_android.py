@@ -96,13 +96,16 @@ gradle.write_text(g, encoding="utf-8")
 
 # AGP 9 compatibility: keep the legacy DSL available for Flutter plugins
 # that have not migrated yet (including the Stockfish Android plugin).
+# Write one real property per line; do not leave escaped "\\n" text in this file.
 gradle_properties = root / "android" / "gradle.properties"
 if gradle_properties.is_file():
     props = gradle_properties.read_text(encoding="utf-8")
-    for setting in ("android.newDsl=false", "android.builtInKotlin=false"):
-        key = setting.split("=", 1)[0]
-        props = re.sub(rf"(?m)^\\s*{re.escape(key)}\\s*=.*\\n?", "", props)
-        props = props.rstrip() + "\\n" + setting + "\\n"
-    gradle_properties.write_text(props, encoding="utf-8")
+    lines = [
+        line for line in props.splitlines()
+        if not line.strip().startswith("android.newDsl=")
+        and not line.strip().startswith("android.builtInKotlin=")
+    ]
+    lines.extend(["android.newDsl=false", "android.builtInKotlin=false"])
+    gradle_properties.write_text("\\n".join(lines) + "\\n", encoding="utf-8")
 
 print("Android manifest and Gradle configuration patched.")
