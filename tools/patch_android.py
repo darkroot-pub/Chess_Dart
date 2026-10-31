@@ -19,6 +19,14 @@ if "android.permission.INTERNET" not in xml:
         xml,
         count=1,
     )
+if "login-callback" not in xml:
+    xml = xml.replace("</activity>", '''    <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="io.darkchess.app" android:host="login-callback"/>
+            </intent-filter>
+        </activity>''', 1)
 xml = re.sub(r'android:label="[^"]*"', 'android:label="DarkChess"', xml, count=1)
 manifest.write_text(xml, encoding="utf-8")
 

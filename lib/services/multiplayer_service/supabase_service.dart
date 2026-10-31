@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/constants/constants.dart';
 
@@ -43,28 +42,11 @@ class SupabaseService {
   }
 
   Future<void> signIn(String email, String password) => client.auth.signInWithPassword(email: email, password: password);
-  /// Native Google account picker (no browser). Exchanges the Google ID token for a Supabase session.
-  Future<void> signInGoogle() async {
-    if (SupabaseConfig.googleWebClientId.isEmpty) throw 'Google sign-in is not configured (missing GOOGLE_WEB_CLIENT_ID).';
-    final g = GoogleSignIn(serverClientId: SupabaseConfig.googleWebClientId);
-    await g.signOut(); // always show the account chooser
-    final acct = await g.signIn();
-    if (acct == null) return; // user cancelled
-    final auth = await acct.authentication;
-    final idToken = auth.idToken;
-    if (idToken == null) throw 'Google did not return an ID token.';
-    await client.auth.signInWithIdToken(provider: OAuthProvider.google, idToken: idToken, accessToken: auth.accessToken);
-  }
+  static const oauthRedirect = 'io.darkchess.app://login-callback/';
+  /// Opens Google's consent page in the browser; the session arrives via the deep link.
+  Future<void> signInGoogle() => client.auth.signInWithOAuth(OAuthProvider.google, redirectTo: oauthRedirect);
   Future<void> signInGuest() => client.auth.signInAnonymously();
-  Future<void> signOut() async {
-    try { await GoogleSignIn().signOut(); } catch (_) {}
-    await client.auth.signOut();
-  }
-
-  Future<void> updateUsername(String name) async {
-    if (user == null) return;
-    await client.from('profiles').update({'username': name}).eq('id', user!.id);
-  }
+  Future<void> signOut() => client.auth.signOut();
 
   Future<Map<String, dynamic>?> myProfile() async {
     if (user == null) return null;

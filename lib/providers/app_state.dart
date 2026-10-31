@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../core/constants/constants.dart';
 import '../models/models.dart';
 import '../services/audio_service.dart';
-import '../services/multiplayer_service/supabase_service.dart';
 import '../services/storage_service/storage_service.dart';
 
 class AchievementDef {
@@ -58,46 +57,10 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  bool _attached = false;
-
-  /// Call once after Supabase init: keeps the displayed name in sync with the `profiles` table.
-  void attachSupabase() {
-    final sb = SupabaseService.instance;
-    if (_attached || !sb.available) return;
-    _attached = true;
-    sb.client.auth.onAuthStateChange.listen((d) { if (d.session != null) syncProfile(); });
-    syncProfile();
-  }
-
-  /// Loads the username from the database (the profile row is created by a trigger, so retry briefly).
-  Future<void> syncProfile() async {
-    final sb = SupabaseService.instance;
-    if (!sb.available || !sb.signedIn) return;
-    for (var i = 0; i < 4; i++) {
-      try {
-        final p = await sb.myProfile();
-        final n = p?['username'] as String?;
-        if (n != null && n.isNotEmpty) {
-          if (stats.username != n) {
-            stats.username = n;
-            storage.saveStats(stats);
-            notifyListeners();
-          }
-          return;
-        }
-      } catch (_) {}
-      await Future.delayed(const Duration(milliseconds: 600));
-    }
-  }
-
   void setUsername(String n) {
     stats.username = n.trim().isEmpty ? 'Player' : n.trim();
     storage.saveStats(stats);
     notifyListeners();
-    final sb = SupabaseService.instance;
-    if (sb.available && sb.signedIn) {
-      sb.updateUsername(stats.username).catchError((_) {}).whenComplete(syncProfile); // reverts if name is taken
-    }
   }
 
   void setSaved(SavedGame? g) {
