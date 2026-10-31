@@ -90,6 +90,17 @@ jobs:
             echo 'Signing secrets are incomplete; using debug signing for this test build.'
           fi
 
+      - name: Print signing SHA-1 (add this to the Google Android OAuth client)
+        shell: bash
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          if [ -f android/app/release.jks ]; then
+            keytool -list -v -keystore android/app/release.jks -storepass "$KEYSTORE_PASSWORD" | grep -E "SHA1|SHA256" || true
+          else
+            echo 'No release keystore: debug signing, SHA-1 will change every build.'
+          fi
+
       - name: Resolve Flutter dependencies
         run: flutter pub get
 
