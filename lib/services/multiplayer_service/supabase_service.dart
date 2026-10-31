@@ -71,6 +71,20 @@ class SupabaseService {
     return await client.from('profiles').select().eq('id', user!.id).maybeSingle();
   }
 
+  /// Cloud progress row (stats / settings / history) or null if none yet.
+  Future<Map<String, dynamic>?> fetchProgress() async {
+    if (user == null) return null;
+    return await client.from('user_progress').select().eq('user_id', user!.id).maybeSingle();
+  }
+
+  Future<void> saveProgress(Map<String, dynamic> stats, Map<String, dynamic> settings, List<dynamic> history) async {
+    if (user == null) return;
+    await client.from('user_progress').upsert({
+      'user_id': user!.id, 'stats': stats, 'settings': settings, 'history': history,
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    });
+  }
+
   Future<void> heartbeat() async {
     try {
       await client.rpc('touch_presence');
@@ -115,9 +129,24 @@ class SupabaseService {
 
   /// Server-validated actions: move (uci), resign, offer_draw, accept_draw, decline_draw, timeout.
   Future<Map<String, dynamic>> action(String gameId, String action, {String? uci}) async {
-    final res = await client.functions.invoke('game-action', body: {'game_id': gameId, 'action': action, if (uci != null) 'uci': uci});
-    final d = res.data;
-    if (d is Map && d['error'] != null) throw d['error'];
+    dynamic d;
+    try {
+      final res = await client.functions.invoke('game-action', body: {'game_id': gameId, 'action': action, if (uci != null) 'uci': uci});
+      d = res.data;
+    } catch (e) {
+      String? msg;
+      try {
+        final det = (e as dynamic).details;
+        if (det is Map && det['error'] != null) msg = '${det['error']}';
+      } catch (_) {}
+      if (msg != null) throw msg;
+      final s = '$e';
+      if (s.contains('NOT_FOUND') || s.contains('404')) {
+        throw 'Game server is not deployed. Deploy the "game-action" Edge Function in Supabase (see SETUP_SUPABASE.md, step 4).';
+      }
+      throw s;
+    }
+    if (d is Map && d['error'] != null) throw '${d['error']}';
     return Map<String, dynamic>.from(d as Map);
   }
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import '../core/constants/constants.dart';
@@ -54,7 +55,7 @@ class AppState extends ChangeNotifier {
   void updateSettings(void Function(AppSettings s) f) {
     f(settings);
     _applyAudio();
-    storage.saveSettings(settings);
+    storage.saveSettings(settings); _pushSoon();
     notifyListeners();
   }
 
@@ -65,7 +66,13 @@ class AppState extends ChangeNotifier {
     final sb = SupabaseService.instance;
     if (_attached || !sb.available) return;
     _attached = true;
-    sb.client.auth.onAuthStateChange.listen((d) { if (d.session != null) syncProfile(); });
+    sb.client.auth.onAuthStateChange.listen((d) {
+      if (d.session != null) {
+        syncProfile();
+      } else if (_synced) {
+        _resetLocal(); // another account may log in next: do not leak this user's progress
+      }
+    });
     syncProfile();
   }
 
@@ -78,11 +85,8 @@ class AppState extends ChangeNotifier {
         final p = await sb.myProfile();
         final n = p?['username'] as String?;
         if (n != null && n.isNotEmpty) {
-          if (stats.username != n) {
-            stats.username = n;
-            storage.saveStats(stats);
-            notifyListeners();
-          }
+          stats.username = n;
+          await _pullAndMerge();
           return;
         }
       } catch (_) {}
@@ -92,12 +96,98 @@ class AppState extends ChangeNotifier {
 
   void setUsername(String n) {
     stats.username = n.trim().isEmpty ? 'Player' : n.trim();
-    storage.saveStats(stats);
+    storage.saveStats(stats); _pushSoon();
     notifyListeners();
     final sb = SupabaseService.instance;
     if (sb.available && sb.signedIn) {
       sb.updateUsername(stats.username).catchError((_) {}).whenComplete(syncProfile); // reverts if name is taken
     }
+  }
+
+  // ---------------------------------------------------------------- cloud progress
+  bool _synced = false;
+  Timer? _pushTimer;
+  String syncStatus = ''; // shown in the profile screen
+
+  void _pushSoon() {
+    final sb = SupabaseService.instance;
+    if (!_synced || !sb.available || !sb.signedIn) return;
+    _pushTimer?.cancel();
+    _pushTimer = Timer(const Duration(seconds: 2), pushNow);
+  }
+
+  Future<void> pushNow() async {
+    final sb = SupabaseService.instance;
+    if (!sb.available || !sb.signedIn) return;
+    try {
+      await sb.saveProgress(stats.toJson(), settings.toJson(), history.take(100).map((e) => e.toJson()).toList());
+      syncStatus = 'Saved to cloud';
+    } catch (e) {
+      syncStatus = 'Cloud save failed: $e';
+    }
+    notifyListeners();
+  }
+
+  /// Downloads the cloud copy and merges it with this device, then uploads the result.
+  Future<void> _pullAndMerge() async {
+    final sb = SupabaseService.instance;
+    try {
+      final row = await sb.fetchProgress();
+      if (row != null) {
+        final rs = PlayerStats.fromJson(Map<String, dynamic>.from(row['stats'] ?? {}));
+        // keep the DB username; counters come from whichever side has played more
+        final src = rs.played > stats.played ? rs : stats;
+        final merged = PlayerStats()
+          ..username = stats.username
+          ..rating = src.rating
+          ..played = max(rs.played, stats.played)
+          ..wins = max(rs.wins, stats.wins)
+          ..losses = max(rs.losses, stats.losses)
+          ..draws = max(rs.draws, stats.draws)
+          ..puzzlePoints = max(rs.puzzlePoints, stats.puzzlePoints)
+          ..solved = {...rs.solved, ...stats.solved}
+          ..achievements = {...rs.achievements, ...stats.achievements};
+        stats = merged;
+        final rset = row['settings'];
+        if (rset is Map && rset.isNotEmpty) {
+          settings = AppSettings.fromJson(Map<String, dynamic>.from(rset));
+          storage.saveSettings(settings);
+          _applyAudio();
+        }
+        final byId = <String, GameRecord>{for (final g in history) g.id: g};
+        for (final e in (row['history'] as List? ?? [])) {
+          try {
+            final g = GameRecord.fromJson(Map<String, dynamic>.from(e));
+            byId.putIfAbsent(g.id, () => g);
+          } catch (_) {}
+        }
+        history = byId.values.toList()..sort((a, b) => b.date.compareTo(a.date));
+        if (history.length > 200) history = history.sublist(0, 200);
+        storage.saveHistory(history);
+      }
+      storage.saveStats(stats);
+      _synced = true;
+      notifyListeners();
+      await pushNow();
+    } catch (e) {
+      syncStatus = 'Cloud sync failed: $e';
+      notifyListeners();
+    }
+  }
+
+  void _resetLocal() {
+    _synced = false;
+    _pushTimer?.cancel();
+    stats = PlayerStats();
+    history = [];
+    settings = AppSettings();
+    saved = null;
+    storage.saveStats(stats);
+    storage.saveHistory(history);
+    storage.saveSettings(settings);
+    storage.saveSavedGame(null);
+    syncStatus = '';
+    notifyListeners();
   }
 
   void setSaved(SavedGame? g) {
@@ -132,7 +222,7 @@ class AppState extends ChangeNotifier {
         if (opp >= 2600) _achieve('win_expert');
       }
       if (stats.rating >= 1400) _achieve('rating_1400');
-      storage.saveStats(stats);
+      storage.saveStats(stats); _pushSoon();
     }
     final rec = GameRecord(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
@@ -141,7 +231,7 @@ class AppState extends ChangeNotifier {
       startFen: startFen, userColor: userColor, ratingDelta: delta, ucis: ucis,
     );
     history.insert(0, rec);
-    storage.saveHistory(history);
+    storage.saveHistory(history); _pushSoon();
     notifyListeners();
     return rec;
   }
@@ -150,7 +240,7 @@ class AppState extends ChangeNotifier {
 
   void unlock(String id) {
     if (stats.achievements.add(id)) {
-      storage.saveStats(stats);
+      storage.saveStats(stats); _pushSoon();
       notifyListeners();
     }
   }
@@ -160,7 +250,7 @@ class AppState extends ChangeNotifier {
       stats.puzzlePoints += points;
       if (stats.solved.length >= 5) _achieve('puzzles_5');
       if (stats.solved.length >= totalPuzzles) _achieve('puzzles_all');
-      storage.saveStats(stats);
+      storage.saveStats(stats); _pushSoon();
       notifyListeners();
     }
   }

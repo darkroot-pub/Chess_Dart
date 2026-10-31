@@ -33,6 +33,15 @@ The service-role key is used ONLY inside this function on Supabase's servers and
 (No PC? In the dashboard open **Edge Functions → Deploy a new function → Via Editor**, name it `game-action`,
 paste `supabase/functions/game-action/index.ts`, and deploy.)
 
+### If you already ran an older schema.sql
+Run `supabase/patch_2_fix_room_and_progress.sql` once in the SQL Editor. It fixes "Create private room" (error
+`gen_random_bytes does not exist`) and adds the `user_progress` table used for cloud save.
+
+### If moves / resign / draw show "Requested function was not found" (404)
+The `game-action` Edge Function is not deployed. In Supabase: **Edge Functions → Deploy a new function → Via Editor**,
+name it exactly `game-action`, paste all of `supabase/functions/game-action/index.ts`, click **Deploy**.
+Keep "Verify JWT" ON. No secrets are needed; Supabase injects them.
+
 ## 5. Copy the two keys the app needs
 Project Settings → **API**:
 - **Project URL**  → `SUPABASE_URL`
@@ -58,3 +67,8 @@ players active in the last 3 minutes; there is no direct challenge/invite yet (u
 2. Supabase → Authentication → Providers → **Google**: enable, paste the Web Client ID + Secret. (Optionally tick "Skip nonce checks".)
 3. Add a GitHub secret `GOOGLE_WEB_CLIENT_ID` (the **Web** client ID) — it is passed with `--dart-define` at build time.
    Local run: `flutter run --dart-define=GOOGLE_WEB_CLIENT_ID=... --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=...`
+
+
+## Cloud save
+When a player is signed in (email, Google or guest) their puzzles solved, puzzle points, stats, achievements, settings
+and game history are saved to the `user_progress` table and restored on any device after login (merged with local data).

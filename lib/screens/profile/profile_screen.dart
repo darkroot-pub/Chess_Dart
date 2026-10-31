@@ -1,3 +1,4 @@
+import '../../services/multiplayer_service/supabase_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
@@ -44,6 +45,18 @@ class ProfileScreen extends StatelessWidget {
           Row(children: [stat('Games Played', '${st.played}'), stat('Win Rate', '${st.winRate}%')]),
           Row(children: [stat('Total Wins', '${st.wins}'), stat('Total Losses', '${st.losses}')]),
           Row(children: [stat('Draws', '${st.draws}'), stat('Puzzle points', '${st.puzzlePoints}')]),
+          if (SupabaseService.instance.available && SupabaseService.instance.signedIn)
+            Container(
+              margin: const EdgeInsets.only(top: 4, bottom: 4),
+              padding: const EdgeInsets.all(12),
+              decoration: cardDeco(),
+              child: Row(children: [
+                const Icon(Icons.cloud_done_outlined, color: C.primary),
+                const SizedBox(width: 10),
+                Expanded(child: Text(app.syncStatus.isEmpty ? 'Progress is saved to your account' : app.syncStatus, style: const TextStyle(fontSize: 12.5, color: C.text2))),
+                TextButton(onPressed: () => app.syncProfile(), child: const Text('Sync now')),
+              ]),
+            ),
           const SizedBox(height: 8),
           const Text('Achievements', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
           const SizedBox(height: 8),
