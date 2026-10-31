@@ -51,9 +51,10 @@ Known limits: clocks use the phone clock for display only; the server decides ti
 players active in the last 3 minutes; there is no direct challenge/invite yet (use private room codes).
 
 
-## Google sign-in
-1. Google Cloud Console → APIs & Services → Credentials → Create **OAuth client ID** → type **Web application**.
-   Authorized redirect URI: `https://<YOUR-PROJECT-REF>.supabase.co/auth/v1/callback`.
-2. Supabase → Authentication → Sign In / Providers → **Google**: enable, paste Client ID and Secret, save.
-3. Supabase → Authentication → URL Configuration → **Redirect URLs**: add `io.darkchess.app://login-callback/`.
-4. Rebuild (the CI runs `tools/patch_android.py`, which registers the `io.darkchess.app://login-callback` deep link).
+## Google sign-in (native account picker, no browser)
+1. Google Cloud Console → APIs & Services → Credentials → create two OAuth clients:
+   - **Web application** → copy its Client ID and Secret. Authorized redirect URI: `https://<PROJECT-REF>.supabase.co/auth/v1/callback`.
+   - **Android** → package name = your app id, plus the **SHA-1** of the keystore that signs the APK (release keystore *and* debug if you test with it).
+2. Supabase → Authentication → Providers → **Google**: enable, paste the Web Client ID + Secret. (Optionally tick "Skip nonce checks".)
+3. Add a GitHub secret `GOOGLE_WEB_CLIENT_ID` (the **Web** client ID) — it is passed with `--dart-define` at build time.
+   Local run: `flutter run --dart-define=GOOGLE_WEB_CLIENT_ID=... --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=...`
