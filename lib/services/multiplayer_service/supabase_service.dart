@@ -61,6 +61,11 @@ class SupabaseService {
     await client.auth.signOut();
   }
 
+  Future<void> updateAvatar(String url) async {
+    if (user == null) return;
+    await client.from('profiles').update({'avatar_url': url}).eq('id', user!.id);
+  }
+
   Future<void> updateUsername(String name) async {
     if (user == null) return;
     await client.from('profiles').update({'username': name}).eq('id', user!.id);
@@ -95,7 +100,7 @@ class SupabaseService {
     final since = DateTime.now().toUtc().subtract(const Duration(minutes: 3)).toIso8601String();
     final uid = user?.id;
     if (uid == null) return [];
-    final r = await client.from('profiles').select('id,username,rating,games_played').gt('last_seen', since).neq('id', uid).order('rating', ascending: false).limit(50);
+    final r = await client.from('profiles').select('id,username,rating,games_played,avatar_url').gt('last_seen', since).neq('id', uid).order('rating', ascending: false).limit(50);
     return List<Map<String, dynamic>>.from(r);
   }
 

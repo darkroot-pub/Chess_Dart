@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show AuthException;
 import '../../core/constants/constants.dart';
 import '../../core/theme/app_theme.dart';
 import '../../services/multiplayer_service/supabase_service.dart';
 import '../../widgets/cards/common.dart';
+import '../../providers/app_state.dart';
+import 'friends_screen.dart';
 import 'online_game_screen.dart';
 
 class OnlineHubScreen extends StatefulWidget {
@@ -27,6 +30,7 @@ class _OnlineHubScreenState extends State<OnlineHubScreen> {
   @override
   void initState() {
     super.initState();
+    try { email.text = context.read<AppState>().storage.lastEmail; } catch (_) {}
     if (sb.available) {
       _authSub = sb.client.auth.onAuthStateChange.listen((d) {
         if (d.session != null && mounted) { setState(() => error = null); _refresh(); }
@@ -108,6 +112,7 @@ class _OnlineHubScreenState extends State<OnlineHubScreen> {
             } else {
               await sb.signIn(email.text.trim(), pass.text);
             }
+            try { context.read<AppState>().storage.setLastEmail(email.text.trim()); } catch (_) {}
             await _refresh();
           }),
           child: Text(signUp ? 'Create account' : 'Sign in'),
@@ -130,6 +135,7 @@ class _OnlineHubScreenState extends State<OnlineHubScreen> {
               ChoiceChip(label: Text(kTimeControls[i].label), selected: tc == i, onSelected: (_) => setState(() => tc = i), selectedColor: C.primary, showCheckmark: false, side: BorderSide.none, backgroundColor: C.softBlue, labelStyle: TextStyle(color: tc == i ? Colors.white : C.text)),
           ]),
           const SizedBox(height: 12),
+          NavTile(icon: Icons.group, color: C.success, title: 'Friends & Challenges', subtitle: 'Challenge friends, get invitations', onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FriendsScreen()))),
           AppCard(
             child: Column(children: [
               Row(children: [const IconBubble(Icons.public), const SizedBox(width: 12), const Expanded(child: Text('Quick Match\nFind an opponent instantly', style: TextStyle(fontWeight: FontWeight.w700)))]),
@@ -159,12 +165,14 @@ class _OnlineHubScreenState extends State<OnlineHubScreen> {
             AppCard(
               padding: const EdgeInsets.all(10),
               child: Row(children: [
-                Avatar(p['username'] ?? '?'),
+                Avatar(p['username'] ?? '?', url: p['avatar_url'] as String?),
                 const SizedBox(width: 10),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(p['username'] ?? '?', style: const TextStyle(fontWeight: FontWeight.w700)), Text('(${p['rating']}) · ${p['games_played']} games', style: const TextStyle(color: C.text2, fontSize: 12))])),
                 const Icon(Icons.circle, color: C.success, size: 10),
                 const SizedBox(width: 4),
                 const Text('Online', style: TextStyle(color: C.success, fontSize: 12)),
+                const SizedBox(width: 6),
+                FilledButton.tonal(style: FilledButton.styleFrom(visualDensity: VisualDensity.compact), onPressed: () => showChallengeSheet(context, p['id'] as String, '${p['username']}'), child: const Text('Challenge')),
               ]),
             ),
         ]),

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../widgets/cards/challenge_banner.dart';
+import 'nav.dart';
 import '../core/theme/app_theme.dart';
 import '../screens/game/play_setup_screen.dart';
 import '../screens/home/home_screen.dart';
@@ -14,6 +16,8 @@ class DarkChessApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light,
         themeMode: ThemeMode.light,
+        navigatorKey: navKey,
+        builder: (context, child) => ChallengeOverlay(child: child ?? const SizedBox.shrink()),
         home: const SplashScreen(),
       );
 }

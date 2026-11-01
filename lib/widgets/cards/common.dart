@@ -83,7 +83,8 @@ class Avatar extends StatelessWidget {
   final String name;
   final double size;
   final bool bot;
-  const Avatar(this.name, {super.key, this.size = 40, this.bot = false});
+  final String? url; // profile photo (e.g. from Google); falls back to the initial
+  const Avatar(this.name, {super.key, this.size = 40, this.bot = false, this.url});
   @override
   Widget build(BuildContext context) {
     final colors = [C.primary, const Color(0xFF7C3AED), const Color(0xFF0891B2), const Color(0xFFDB2777), const Color(0xFFEA580C)];
@@ -91,6 +92,8 @@ class Avatar extends StatelessWidget {
     return CircleAvatar(
       radius: size / 2,
       backgroundColor: c,
+      foregroundImage: (url != null && url!.isNotEmpty) ? NetworkImage(url!) : null,
+      onForegroundImageError: (url != null && url!.isNotEmpty) ? (_, __) {} : null,
       child: bot ? Icon(Icons.smart_toy, color: Colors.white, size: size * 0.55) : Text(name.isEmpty ? '?' : name[0].toUpperCase(), style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: size * 0.42)),
     );
   }

@@ -25,6 +25,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/sounds/
+    - assets/images/
     - assets/pieces/alpha/
     - assets/pieces/anarcandy/
     - assets/pieces/caliente/

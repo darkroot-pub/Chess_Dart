@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../core/constants/constants.dart';
 import '../models/models.dart';
 import '../services/audio_service.dart';
+import '../services/multiplayer_service/challenge_service.dart';
 import '../services/multiplayer_service/supabase_service.dart';
 import '../services/storage_service/storage_service.dart';
 
@@ -60,6 +61,8 @@ class AppState extends ChangeNotifier {
   }
 
   bool _attached = false;
+  String? avatarUrl; // profile photo (Google photo or custom)
+  String? get email => SupabaseService.instance.user?.email;
 
   /// Call once after Supabase init: keeps the displayed name in sync with the `profiles` table.
   void attachSupabase() {
@@ -68,11 +71,14 @@ class AppState extends ChangeNotifier {
     _attached = true;
     sb.client.auth.onAuthStateChange.listen((d) {
       if (d.session != null) {
+        ChallengeService.instance.start();
         syncProfile();
-      } else if (_synced) {
-        _resetLocal(); // another account may log in next: do not leak this user's progress
+      } else {
+        ChallengeService.instance.stop();
+        if (_synced) _resetLocal(); // another account may log in next: do not leak this user's progress
       }
     });
+    if (sb.signedIn) ChallengeService.instance.start();
     syncProfile();
   }
 
@@ -86,6 +92,16 @@ class AppState extends ChangeNotifier {
         final n = p?['username'] as String?;
         if (n != null && n.isNotEmpty) {
           stats.username = n;
+          avatarUrl = p?['avatar_url'] as String?;
+          if (avatarUrl == null || avatarUrl!.isEmpty) {
+            // auto-fill the photo from the login provider (e.g. Google)
+            final md = sb.user?.userMetadata;
+            final pic = (md?['avatar_url'] ?? md?['picture']) as String?;
+            if (pic != null && pic.isNotEmpty) {
+              avatarUrl = pic;
+              sb.updateAvatar(pic).catchError((_) {});
+            }
+          }
           await _pullAndMerge();
           return;
         }
@@ -187,6 +203,7 @@ class AppState extends ChangeNotifier {
     storage.saveSettings(settings);
     storage.saveSavedGame(null);
     syncStatus = '';
+    avatarUrl = null;
     notifyListeners();
   }
 

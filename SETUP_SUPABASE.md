@@ -42,6 +42,11 @@ The `game-action` Edge Function is not deployed. In Supabase: **Edge Functions �
 name it exactly `game-action`, paste all of `supabase/functions/game-action/index.ts`, click **Deploy**.
 Keep "Verify JWT" ON. No secrets are needed; Supabase injects them.
 
+### Friends, challenges and profile photos
+Run `supabase/patch_3_social.sql` once in the SQL Editor. It adds profile photos (auto-filled from Google), the
+`challenges` table and the `send_challenge` / `respond_challenge` / `cancel_challenge` functions.
+(New installs: `schema.sql` already contains everything; the patch files are only for databases created earlier.)
+
 ## 5. Copy the two keys the app needs
 Project Settings → **API**:
 - **Project URL**  → `SUPABASE_URL`

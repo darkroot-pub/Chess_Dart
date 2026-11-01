@@ -10,6 +10,7 @@ import '../game/play_setup_screen.dart';
 import '../leaderboard/leaderboard_screen.dart';
 import '../learn/learn_screen.dart';
 import '../multiplayer/online_hub_screen.dart';
+import '../../services/multiplayer_service/supabase_service.dart';
 import '../puzzles/puzzles_screen.dart';
 import '../settings/settings_screen.dart';
 
@@ -32,7 +33,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (app.storage.onboarded) return;
     await app.storage.setOnboarded();
     if (!mounted) return;
-    final c = TextEditingController();
+    final md = SupabaseService.instance.user?.userMetadata;
+    final c = TextEditingController(text: '${md?['full_name'] ?? md?['name'] ?? ''}');
     final n = await showDialog<String>(
       context: context,
       barrierDismissible: false,
@@ -68,7 +70,7 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 14),
           AppCard(
             child: Row(children: [
-              Avatar(st.username, size: 46),
+              Avatar(st.username, size: 46, url: app.avatarUrl),
               const SizedBox(width: 12),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('Hello, ${st.username}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),

@@ -30,13 +30,14 @@ class ProfileScreen extends StatelessWidget {
       body: SafeArea(
         child: ListView(padding: const EdgeInsets.all(16), children: [
           Row(children: [
-            Avatar(st.username, size: 76),
+            Avatar(st.username, size: 76, url: app.avatarUrl),
             const SizedBox(width: 16),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
                 Flexible(child: Text(st.username, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800), overflow: TextOverflow.ellipsis)),
                 IconButton(icon: const Icon(Icons.edit, size: 18, color: C.text2), onPressed: () => _rename(context, app)),
               ]),
+              if (app.email != null && app.email!.isNotEmpty) Text(app.email!, style: const TextStyle(fontSize: 12.5, color: C.text2), overflow: TextOverflow.ellipsis),
               Text('${st.rating}', style: const TextStyle(fontSize: 18, color: C.text2, fontWeight: FontWeight.w700)),
               Container(margin: const EdgeInsets.only(top: 4), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3), decoration: BoxDecoration(color: C.softBlue, borderRadius: BorderRadius.circular(10)), child: Text(st.level, style: const TextStyle(color: C.primary, fontWeight: FontWeight.w700, fontSize: 12))),
             ])),
