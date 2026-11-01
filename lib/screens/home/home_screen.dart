@@ -7,7 +7,9 @@ import '../../services/multiplayer_service/supabase_service.dart';
 import '../../widgets/cards/common.dart';
 import '../../widgets/cards/ui_kit.dart';
 import '../../widgets/chessboard/chess_board.dart';
+import '../character/character_screen.dart';
 import '../game/game_screen.dart';
+import '../../widgets/cards/character_viewer.dart';
 import '../leaderboard/leaderboard_screen.dart';
 import '../learn/learn_screen.dart';
 import '../multiplayer/online_hub_screen.dart';
@@ -174,6 +176,28 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             )),
             const SizedBox(height: 12),
+            r(Pressable(
+              onTap: () => push(const CharacterScreen()),
+              child: Container(
+                height: 150,
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(borderRadius: BorderRadius.circular(22), gradient: const LinearGradient(colors: [Color(0xFF3B2A7A), Color(0xFF6D4AD8)]), boxShadow: const [BoxShadow(color: Color(0x336D4AD8), blurRadius: 18, offset: Offset(0, 8))]),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(22),
+                  child: Stack(children: [
+                    Positioned(right: -6, top: 4, bottom: 0, child: Image.asset(CharacterViewer.frame(0), fit: BoxFit.contain)),
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(18, 14, 150, 14),
+                      child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text('Meet your Guardian', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
+                        SizedBox(height: 3),
+                        Text('Rotate and explore in 3D', style: TextStyle(color: Color(0xE6FFFFFF), fontSize: 13)),
+                      ]),
+                    ),
+                  ]),
+                ),
+              ),
+            )),
             r(Row(children: [
               Expanded(child: BannerCard(image: 'assets/images/banner_puzzles.jpg', title: 'Puzzles', subtitle: 'Sharpen tactics', height: 120, onTap: () => widget.goTab(2))),
               const SizedBox(width: 10),

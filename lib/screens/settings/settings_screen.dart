@@ -99,6 +99,8 @@ class SettingsPanel extends StatelessWidget {
                 '(https://sketchfab.com/3d-models/low-poly-chess-set-0f440e2b01ca42f8b3fdee8178c51f20), '
                 'licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/). '
                 'Images were rendered from the model.\n\n'
+                'Guardian character: "Spirit Blossom Kindred" (https://sketchfab.com/3d-models/spirit-blossom-kindred-85187f9f246f4702b7c137dcc6c0fc12) '
+                'by Retronous (https://sketchfab.com/Retronous) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/). Rendered to turntable frames.\n\n'
                 'Other piece sets: lichess.org (see their licenses). Chess engine: Stockfish (GPL).',
               ),
             ),
