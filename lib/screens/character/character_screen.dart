@@ -84,6 +84,9 @@ class _Typewriter extends StatelessWidget {
   Widget build(BuildContext context) => TweenAnimationBuilder<int>(
         tween: IntTween(begin: 0, end: text.length),
         duration: Duration(milliseconds: 25 * text.length),
-        builder: (_, n, __) => Text(text.substring(0, n), style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.35, fontWeight: FontWeight.w600), minLines: 2, maxLines: 4),
+        builder: (_, n, __) => ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 42),
+          child: Text(text.substring(0, n), style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.35, fontWeight: FontWeight.w600), maxLines: 4),
+        ),
       );
 }
