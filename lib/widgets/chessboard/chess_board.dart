@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/constants/constants.dart';
@@ -18,7 +19,7 @@ class PieceImage extends StatelessWidget {
 /// Interactive 8x8 board: tap-to-move, drag-and-drop, highlights, arrows and move-quality badges.
 class ChessBoardView extends StatelessWidget {
   final List<int> pieces;
-  final bool flipped, coords;
+  final bool flipped, coords, animate, highlightLast;
   final String pieceSet;
   final BoardTheme theme;
   final int? selected, lastFrom, lastTo, checkSq;
@@ -39,6 +40,8 @@ class ChessBoardView extends StatelessWidget {
     required this.theme,
     this.flipped = false,
     this.coords = true,
+    this.animate = false,
+    this.highlightLast = true,
     this.selected,
     this.lastFrom,
     this.lastTo,
@@ -71,7 +74,10 @@ class ChessBoardView extends StatelessWidget {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(6),
           child: Stack(children: [
-            for (int sq = 0; sq < 64; sq++) _square(sq, s),
+            for (int sq = 0; sq < 64; sq++)
+              if (sq != lastTo) _square(sq, s),
+            // drawn last so a sliding piece passes over its neighbours
+            if (lastTo != null) _square(lastTo!, s),
             if (arrow != null) IgnorePointer(child: CustomPaint(size: Size(side, side), painter: _ArrowPainter(_pos(arrow![0], s) + Offset(s / 2, s / 2), _pos(arrow![1], s) + Offset(s / 2, s / 2), s, arrowColor))),
             if (badgeSq != null && badgeText != null)
               Positioned(
@@ -100,7 +106,7 @@ class ChessBoardView extends StatelessWidget {
     final pos = _pos(sq, s);
     Color bg = isLight ? theme.light : theme.dark;
     final overlays = <Widget>[];
-    if (sq == lastFrom || sq == lastTo) overlays.add(Container(color: const Color(0x66F6E05E)));
+    if (highlightLast && (sq == lastFrom || sq == lastTo)) overlays.add(Container(color: const Color(0x66F6E05E)));
     if (sq == selected) overlays.add(Container(color: const Color(0x8860A5FA)));
     if (sq == checkSq) {
       overlays.add(Container(decoration: const BoxDecoration(gradient: RadialGradient(colors: [Color(0xCCEF4444), Color(0x00EF4444)], radius: 0.8))));
@@ -134,6 +140,31 @@ class ChessBoardView extends StatelessWidget {
       } else {
         piece = img;
       }
+      if (animate && sq == lastTo && lastFrom != null && lastFrom != lastTo) {
+        final d = _pos(lastFrom!, s) - pos;
+        final inner = piece;
+        piece = TweenAnimationBuilder<double>(
+          key: ValueKey('mv$lastFrom>$lastTo'),
+          tween: Tween(begin: 0, end: 1),
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOutCubic,
+          child: inner,
+          builder: (_, t, child) {
+            // slide from the origin square with a small hop in the middle
+            final hop = -math.sin(t * math.pi) * s * 0.18;
+            return Transform.translate(offset: Offset(d.dx * (1 - t), d.dy * (1 - t) + hop), child: child);
+          },
+        );
+        overlays.add(IgnorePointer(
+          child: TweenAnimationBuilder<double>(
+            key: ValueKey('ring$lastFrom>$lastTo'),
+            tween: Tween(begin: 0, end: 1),
+            duration: const Duration(milliseconds: 520),
+            curve: Curves.easeOut,
+            builder: (_, t, __) => Center(child: Opacity(opacity: (1 - t) * 0.7, child: Container(width: s * (0.4 + 0.8 * t), height: s * (0.4 + 0.8 * t), decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2.5 * (1 - t) + 0.5))))),
+          ),
+        ));
+      }
     }
     return Positioned(
       left: pos.dx,
@@ -145,7 +176,7 @@ class ChessBoardView extends StatelessWidget {
         builder: (context, cand, rej) => GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: onTap == null ? null : () => onTap!(sq),
-          child: Stack(alignment: Alignment.center, children: [
+          child: Stack(alignment: Alignment.center, clipBehavior: Clip.none, children: [
             Positioned.fill(child: ColoredBox(color: bg)),
             ...overlays,
             if (cand.isNotEmpty) Positioned.fill(child: Container(decoration: BoxDecoration(border: Border.all(color: Colors.white70, width: 3)))),

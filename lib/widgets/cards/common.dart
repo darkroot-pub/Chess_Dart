@@ -4,6 +4,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/constants/constants.dart';
 import '../../services/chess_service/chess_game.dart';
 import '../chessboard/chess_board.dart';
+import 'guardian_widgets.dart';
 
 class AppCard extends StatelessWidget {
   final Widget child;
@@ -108,7 +109,8 @@ class PlayerBar extends StatelessWidget {
   final String pieceSet;
   final int advantage;
   final String? avatarUrl;
-  const PlayerBar({super.key, this.avatarUrl, required this.name, required this.sub, this.clockMs, this.active = false, this.bot = false, this.captured = const [], this.pieceSet = 'cburnett', this.advantage = 0});
+  final bool guardian;
+  const PlayerBar({super.key, this.guardian = false, this.avatarUrl, required this.name, required this.sub, this.clockMs, this.active = false, this.bot = false, this.captured = const [], this.pieceSet = 'cburnett', this.advantage = 0});
   @override
   Widget build(BuildContext context) => AnimatedContainer(
         duration: const Duration(milliseconds: 220),
@@ -121,7 +123,7 @@ class PlayerBar extends StatelessWidget {
           boxShadow: const [BoxShadow(color: Color(0x0F2563EB), blurRadius: 10, offset: Offset(0, 3))],
         ),
         child: Row(children: [
-          Avatar(name, size: 40, bot: bot, url: avatarUrl),
+          guardian ? const GuardianAvatar(size: 40) : Avatar(name, size: 40, bot: bot, url: avatarUrl),
           const SizedBox(width: 10),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

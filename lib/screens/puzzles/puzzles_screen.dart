@@ -1,3 +1,5 @@
+import '../../services/guardian_service.dart';
+import '../../widgets/cards/guardian_widgets.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -141,6 +143,20 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
 
   Puzzle get p => widget.puzzle;
 
+  String? gtext;
+  int gseq = 0;
+  void _say(GEvent e) {
+    if (!context.read<AppState>().settings.guardianPuzzles) return;
+    gtext = Guardian.say(e);
+    gseq++;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _say(GEvent.puzzleStart);
+  }
+
   void _tap(int sq) {
     if (solved || busy || showSolution) return;
     if (selected != null && targets.contains(sq)) {
@@ -186,6 +202,7 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
       g.undo();
       wrong++;
       busy = false;
+      _say(GEvent.puzzleWrong);
       setState(() => msg = 'Not the best move. Try again!');
       AudioService.instance.play('notify');
       return;
@@ -196,6 +213,7 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
       _solve();
       return;
     }
+    _say(GEvent.puzzleOk);
     setState(() => msg = 'Correct! Keep going…');
     await Future.delayed(const Duration(milliseconds: 500));
     if (!mounted) return;
@@ -222,6 +240,7 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
     final first = !app.stats.solved.contains(p.id);
     app.solvePuzzle(p.id, p.points);
     AudioService.instance.play('end');
+    _say(GEvent.puzzleDone);
     setState(() => msg = 'Solved!');
     showDialog<void>(
       context: context,
@@ -237,7 +256,7 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
   void _hint() {
     if (solved || idx >= line.length) return;
     final m = g.findUci(line[idx]);
-    if (m != null) setState(() => hint = [m.from, m.to]);
+    if (m != null) { _say(GEvent.hint); setState(() => hint = [m.from, m.to]); }
   }
 
   @override
@@ -260,6 +279,8 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
             theme: app.boardTheme,
             flipped: userColor == kBlack,
             coords: s.coords,
+            animate: s.animateMoves,
+            highlightLast: s.highlightLast,
             selected: selected,
             targets: s.showLegal ? targets : const {},
             lastFrom: last?.from,
@@ -271,6 +292,7 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
             arrow: hint,
           ),
           const SizedBox(height: 12),
+          if (s.guardianPuzzles) GuardianTalk(text: gtext, seq: gseq),
           Text(showSolution ? p.explanation : (msg.isEmpty ? (p.mate ? 'Find the checkmate.' : 'Find the best move.') : msg), style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: solved ? C.success : (msg.startsWith('Not') ? C.error : C.text)), textAlign: TextAlign.center),
           const SizedBox(height: 12),
           Row(children: [

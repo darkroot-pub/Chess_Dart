@@ -1,12 +1,14 @@
 import 'dart:convert';
 
 class AppSettings {
-  bool sound = true, vibration = true, showLegal = true, autoQueen = false, coords = true;
+  bool sound = true, vibration = true, showLegal = true, autoQueen = false, coords = true,
+      animateMoves = true, highlightLast = true, guardianChat = true, guardianPuzzles = true, guardianSpin = true;
   int boardTheme = 6; // Ocean
   String pieceSet = 'lowpoly3d';
   Map<String, dynamic> toJson() => {
         'sound': sound, 'vibration': vibration, 'showLegal': showLegal, 'autoQueen': autoQueen,
-        'coords': coords, 'boardTheme': boardTheme, 'pieceSet': pieceSet,
+        'coords': coords, 'animateMoves': animateMoves, 'highlightLast': highlightLast, 'guardianChat': guardianChat,
+        'guardianPuzzles': guardianPuzzles, 'guardianSpin': guardianSpin, 'boardTheme': boardTheme, 'pieceSet': pieceSet,
       };
   static AppSettings fromJson(Map<String, dynamic> j) {
     final s = AppSettings();
@@ -15,6 +17,11 @@ class AppSettings {
     s.showLegal = j['showLegal'] ?? true;
     s.autoQueen = j['autoQueen'] ?? false;
     s.coords = j['coords'] ?? true;
+    s.animateMoves = j['animateMoves'] ?? true;
+    s.highlightLast = j['highlightLast'] ?? true;
+    s.guardianChat = j['guardianChat'] ?? true;
+    s.guardianPuzzles = j['guardianPuzzles'] ?? true;
+    s.guardianSpin = j['guardianSpin'] ?? true;
     s.boardTheme = j['boardTheme'] ?? 6;
     s.pieceSet = j['pieceSet'] ?? 'lowpoly3d';
     return s;

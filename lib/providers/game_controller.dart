@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:math' show Random;
 import 'package:flutter/material.dart';
 import '../core/constants/constants.dart';
 import '../models/models.dart';
 import '../services/audio_service.dart';
+import '../services/guardian_service.dart';
 import '../services/chess_service/chess_game.dart';
 import '../services/stockfish_service/engine_service.dart';
 import 'app_state.dart';
@@ -28,6 +30,9 @@ class GameController extends ChangeNotifier {
   Set<int> targets = {};
   List<int>? hint;
   String? hintText;
+  String? guardianText;
+  int guardianSeq = 0;
+  int _sinceTalk = 0;
   GameResult result = GameResult.ongoing;
   String endReason = '';
   GameRecord? record;
@@ -56,8 +61,25 @@ class GameController extends ChangeNotifier {
     }
     _timer = Timer.periodic(const Duration(milliseconds: 100), (_) => _tick());
     if (mode == 'ai') EngineService.instance.newGame();
+    say(resume == null ? GEvent.greet : GEvent.tip);
     Future.microtask(_maybeAi);
   }
+
+  /// Guardian speaks (only vs AI, and only when enabled in settings).
+  void say(GEvent e) {
+    if (mode != 'ai' || !app.settings.guardianChat) return;
+    guardianText = Guardian.say(e);
+    guardianSeq++;
+    _sinceTalk = 0;
+  }
+
+  /// Tap on the Guardian: a random tip or chat line.
+  void chat() {
+    say(_r.nextBool() ? GEvent.tip : GEvent.tap);
+    notifyListeners();
+  }
+
+  static final _r = Random();
 
   // ------------------------------------------------------------ naming
   String get whiteName => mode == 'ai' ? (humanColor == kWhite ? app.stats.username : 'DarkChess AI') : 'Player 1';
@@ -158,9 +180,24 @@ class GameController extends ChangeNotifier {
     }
     AudioService.instance.play(game.inCheck ? 'check' : (m.isCapture ? 'capture' : 'move'));
     AudioService.instance.haptic();
+    _react(mover, m);
     _autosave();
     notifyListeners();
     _maybeAi();
+  }
+
+  void _react(int mover, Move m) {
+    if (mode != 'ai') return;
+    _sinceTalk++;
+    final mine = mover == humanColor;
+    if (game.inCheck) {
+      say(mine ? GEvent.userCheck : GEvent.aiCheck);
+    } else if (m.isCapture) {
+      say(mine ? GEvent.userCapture : GEvent.aiCapture);
+    } else if (_sinceTalk >= 6) {
+      final bal = game.materialBalance() * (humanColor == kWhite ? 1 : -1);
+      say(bal >= 3 ? GEvent.winning : (bal <= -3 ? GEvent.losing : GEvent.userMove));
+    }
   }
 
   void _autosave() {
@@ -229,6 +266,7 @@ class GameController extends ChangeNotifier {
     targets = {};
     hint = null;
     hintText = null;
+    say(GEvent.undo);
     _last = null;
     _autosave();
     notifyListeners();
@@ -249,6 +287,7 @@ class GameController extends ChangeNotifier {
       if (m != null) {
         hint = [m.from, m.to];
         hintText = 'Try ${game.san(m)}';
+        say(GEvent.hint);
       }
     }
     notifyListeners();
@@ -307,6 +346,10 @@ class GameController extends ChangeNotifier {
       opponentRating: mode == 'ai' ? level!.rating : null,
     );
     app.setSaved(null);
+    if (mode == 'ai') {
+      final mine = (r == GameResult.whiteWins && humanColor == kWhite) || (r == GameResult.blackWins && humanColor == kBlack);
+      say(r == GameResult.draw ? GEvent.draw : (mine ? GEvent.win : GEvent.lose));
+    }
     AudioService.instance.play('end');
     AudioService.instance.haptic(heavy: true);
     gameOverPending = true;

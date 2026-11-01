@@ -393,6 +393,8 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
                 theme: app.boardTheme,
                 flipped: flipped,
                 coords: s.coords,
+                animate: s.animateMoves,
+                highlightLast: s.highlightLast,
                 selected: selected,
                 targets: s.showLegal ? targets : const {},
                 lastFrom: lf,

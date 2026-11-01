@@ -7,6 +7,7 @@ import '../../providers/app_state.dart';
 import '../../providers/game_controller.dart';
 import '../../services/chess_service/chess_game.dart';
 import '../../widgets/cards/common.dart';
+import '../../widgets/cards/guardian_widgets.dart';
 import '../../widgets/chessboard/chess_board.dart';
 import '../review/review_screen.dart';
 import '../settings/settings_screen.dart';
@@ -82,6 +83,7 @@ class _GameViewState extends State<_GameView> {
             backgroundColor: C.surface,
             title: Text(c.resultText, textAlign: TextAlign.center),
             content: Column(mainAxisSize: MainAxisSize.min, children: [
+              if (c.mode == 'ai' && context.read<AppState>().settings.guardianChat) Padding(padding: const EdgeInsets.only(bottom: 10), child: GuardianTalk(text: c.guardianText, seq: c.guardianSeq)),
               Text(c.endReason, style: const TextStyle(color: C.text2)),
               if (c.mode == 'ai')
                 Padding(
@@ -142,6 +144,7 @@ class _GameViewState extends State<_GameView> {
           name: color == kWhite ? c.whiteName : c.blackName,
           sub: c.subFor(color),
           bot: c.mode == 'ai' && color != c.humanColor,
+          guardian: c.mode == 'ai' && color != c.humanColor && s.guardianChat,
           clockMs: c.timeControl.untimed ? null : (color == kWhite ? c.whiteMs : c.blackMs),
           active: !c.over && g.turn == color && g.plyCount > 0,
           captured: g.capturedBy(color),
@@ -190,6 +193,8 @@ class _GameViewState extends State<_GameView> {
               theme: app.boardTheme,
               flipped: c.flipped,
               coords: s.coords,
+              animate: s.animateMoves,
+              highlightLast: s.highlightLast,
               selected: c.selected,
               targets: targets,
               lastFrom: last?.from,
@@ -218,6 +223,7 @@ class _GameViewState extends State<_GameView> {
                 ),
               ]),
             ),
+            if (c.mode == 'ai' && s.guardianChat) GuardianTalk(text: c.guardianText, seq: c.guardianSeq, onTap: c.chat),
             Expanded(
               child: Container(
                 width: double.infinity,
