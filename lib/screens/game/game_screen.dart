@@ -35,6 +35,13 @@ class _GameView extends StatefulWidget {
 
 class _GameViewState extends State<_GameView> {
   bool _dialogOpen = false;
+  final _scroll = ScrollController();
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -173,6 +180,10 @@ class _GameViewState extends State<_GameView> {
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Column(children: [
             bar(topColor),
+            Container(
+              padding: const EdgeInsets.all(5),
+              decoration: BoxDecoration(color: app.boardTheme.dark, borderRadius: BorderRadius.circular(18), boxShadow: const [BoxShadow(color: Color(0x332563EB), blurRadius: 18, offset: Offset(0, 8))]),
+              child: ClipRRect(borderRadius: BorderRadius.circular(13), child:
             ChessBoardView(
               pieces: g.board,
               pieceSet: s.pieceSet,
@@ -188,6 +199,7 @@ class _GameViewState extends State<_GameView> {
               onTap: c.onTap,
               onDrop: c.onDrop,
               arrow: c.hint,
+            )),
             ),
             bar(botColor),
             SizedBox(
@@ -202,28 +214,35 @@ class _GameViewState extends State<_GameView> {
                           const Expanded(child: Text('Stockfish could not start', style: TextStyle(color: C.error, fontSize: 13))),
                           TextButton(onPressed: c.retryEngine, child: const Text('Retry')),
                         ])
-                      : Text(status, style: TextStyle(color: g.inCheck && !c.over ? C.error : C.text2, fontWeight: FontWeight.w600, fontSize: 13)),
+                      : Text(status, style: TextStyle(color: g.inCheck && !c.over ? C.error : C.text2, fontWeight: FontWeight.w800, fontSize: 14)),
                 ),
               ]),
             ),
-            SizedBox(
-              height: 34,
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                reverse: true,
-                child: Row(children: [
-                  for (int i = 0; i < g.sanList.length; i++)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: Text(
-                        i % 2 == 0 ? '${i ~/ 2 + 1}. ${g.sanList[i]}' : g.sanList[i],
-                        style: TextStyle(fontWeight: i == g.sanList.length - 1 ? FontWeight.w800 : FontWeight.w500, color: i == g.sanList.length - 1 ? C.primary : C.text),
-                      ),
-                    ),
-                ]),
+            Expanded(
+              child: Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(12),
+                decoration: cardDeco(radius: 18),
+                child: g.sanList.isEmpty
+                    ? const Center(child: Text('Moves will appear here', style: TextStyle(color: C.text2)))
+                    : Builder(builder: (_) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (_scroll.hasClients) _scroll.jumpTo(_scroll.position.maxScrollExtent);
+                        });
+                        return SingleChildScrollView(
+                          controller: _scroll,
+                          child: Wrap(spacing: 10, runSpacing: 6, children: [
+                            for (int i = 0; i < g.sanList.length; i++)
+                              RichText(text: TextSpan(style: const TextStyle(color: C.text, fontSize: 14.5), children: [
+                                if (i % 2 == 0) TextSpan(text: '${i ~/ 2 + 1}. ', style: const TextStyle(color: C.text2)),
+                                TextSpan(text: g.sanList[i], style: TextStyle(fontWeight: i == g.sanList.length - 1 ? FontWeight.w900 : FontWeight.w600, color: i == g.sanList.length - 1 ? C.primary : C.text)),
+                              ])),
+                          ]),
+                        );
+                      }),
               ),
             ),
-            const Spacer(),
             Container(
               decoration: cardDeco(),
               padding: const EdgeInsets.symmetric(vertical: 6),
@@ -260,16 +279,21 @@ class _Act extends StatelessWidget {
   const _Act(this.icon, this.label, this.onTap);
   @override
   Widget build(BuildContext context) {
-    final col = onTap == null ? C.border : C.primary;
+    final on = onTap != null;
     return InkWell(
-      borderRadius: BorderRadius.circular(12),
-      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      onTap: onTap == null ? null : () { HapticFeedback.selectionClick(); onTap!(); },
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, color: col),
-          const SizedBox(height: 2),
-          Text(label, style: TextStyle(fontSize: 11, color: onTap == null ? C.border : C.text2, fontWeight: FontWeight.w600)),
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            width: 44, height: 40,
+            decoration: BoxDecoration(color: on ? C.softBlue : C.bg, borderRadius: BorderRadius.circular(14)),
+            child: Icon(icon, color: on ? C.primary : C.border, size: 22),
+          ),
+          const SizedBox(height: 3),
+          Text(label, style: TextStyle(fontSize: 11, color: on ? C.text : C.border, fontWeight: FontWeight.w700)),
         ]),
       ),
     );

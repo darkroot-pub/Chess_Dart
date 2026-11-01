@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
+import '../../models/puzzles.dart';
 import '../../providers/app_state.dart';
-import '../../services/chess_service/chess_game.dart';
+import '../../services/multiplayer_service/supabase_service.dart';
 import '../../widgets/cards/common.dart';
+import '../../widgets/cards/ui_kit.dart';
 import '../../widgets/chessboard/chess_board.dart';
 import '../game/game_screen.dart';
-import '../game/play_setup_screen.dart';
 import '../leaderboard/leaderboard_screen.dart';
 import '../learn/learn_screen.dart';
 import '../multiplayer/online_hub_screen.dart';
-import '../../services/multiplayer_service/supabase_service.dart';
 import '../puzzles/puzzles_screen.dart';
 import '../settings/settings_screen.dart';
 
@@ -54,81 +54,139 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void push(Widget w) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => w));
 
+  String get _greeting {
+    final h = DateTime.now().hour;
+    return h < 12 ? 'Good morning' : (h < 18 ? 'Good afternoon' : 'Good evening');
+  }
+
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
     final st = app.stats;
     final sv = app.saved;
+    final daily = dailyPuzzle();
+    final dailyDone = st.solved.contains(daily.id);
+    final sb = SupabaseService.instance;
+    final online = sb.available && sb.signedIn;
+    int i = 0;
+    Widget r(Widget w) => Reveal(index: i++, child: w);
     return Scaffold(
-      body: SafeArea(
-        child: ListView(padding: const EdgeInsets.all(16), children: [
-          Row(children: [
-            const Spacer(),
-            RichText(text: const TextSpan(children: [TextSpan(text: 'Dark', style: TextStyle(color: C.text, fontSize: 24, fontWeight: FontWeight.w800)), TextSpan(text: 'Chess', style: TextStyle(color: C.primary, fontSize: 24, fontWeight: FontWeight.w800))])),
-            const Spacer(),
-          ]),
-          const SizedBox(height: 14),
-          AppCard(
-            child: Row(children: [
-              Avatar(st.username, size: 46, url: app.avatarUrl),
+      body: Container(
+        decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, stops: [0, 0.35], colors: [Color(0xFFDCE6FF), C.bg])),
+        child: SafeArea(
+          child: ListView(padding: const EdgeInsets.fromLTRB(16, 10, 16, 16), children: [
+            r(Row(children: [
+              Container(
+                padding: const EdgeInsets.all(3),
+                decoration: const BoxDecoration(shape: BoxShape.circle, gradient: LinearGradient(colors: [C.primary, C.secondary])),
+                child: Container(padding: const EdgeInsets.all(2), decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.white), child: Avatar(st.username, size: 46, url: app.avatarUrl)),
+              ),
               const SizedBox(width: 12),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Hello, ${st.username}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
-                const Text('Ready for your next move?', style: TextStyle(color: C.text2, fontSize: 13)),
-              ])),
-              Column(children: [const Icon(Icons.workspace_premium, color: C.warning), Text('${st.rating}', style: const TextStyle(fontWeight: FontWeight.w800))]),
-            ]),
-          ),
-          InkWell(
-            borderRadius: BorderRadius.circular(18),
-            onTap: () => widget.goTab(1),
-            child: Container(
-              height: 110,
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), gradient: const LinearGradient(colors: [C.primary, C.secondary]), boxShadow: const [BoxShadow(color: Color(0x332563EB), blurRadius: 16, offset: Offset(0, 6))]),
-              child: Row(children: [
-                const Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Play Now', style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800)),
-                  Text('Start a new game', style: TextStyle(color: Colors.white70)),
-                ])),
-                PieceImage(makePiece(kN, kWhite), 'lowpoly3d', 84),
-                PieceImage(makePiece(kK, kWhite), 'lowpoly3d', 96),
-              ]),
-            ),
-          ),
-          const SizedBox(height: 12),
-          if (sv != null)
-            NavTile(
-              icon: Icons.play_circle_fill,
-              color: C.success,
-              title: 'Resume game',
-              subtitle: '${sv.ucis.length} moves played · ${sv.mode == 'ai' ? 'vs AI' : 'Pass & Play'}',
-              onTap: () => push(GameScreen(mode: sv.mode, humanColor: sv.userColor, aiLevel: sv.aiLevel, tcIndex: sv.tcIndex, resume: sv)),
-            ),
-          AppCard(
-            onTap: () => push(const OnlineHubScreen()),
-            child: Row(children: [
-              Image.asset('assets/images/earth.png', width: 46, height: 46),
-              const SizedBox(width: 14),
-              const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Online Multiplayer', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-                SizedBox(height: 2),
-                Text('Play friends & real players', style: TextStyle(color: C.text2, fontSize: 12.5)),
-              ])),
-              const Icon(Icons.chevron_right, color: C.text2),
-            ]),
-          ),
-          NavTile(icon: Icons.smart_toy, title: 'vs AI', subtitle: 'Challenge Stockfish offline', onTap: () => push(const PlaySetupScreen(initialMode: 'ai', showBack: true))),
-          NavTile(icon: Icons.extension, color: C.success, title: 'Puzzles', subtitle: 'Improve your tactics', onTap: () => push(const PuzzlesScreen())),
-          NavTile(icon: Icons.menu_book, title: 'Learn', subtitle: 'Lessons & tips', onTap: () => push(const LearnScreen())),
-          Row(children: [
-            Expanded(child: OutlinedButton.icon(onPressed: () => widget.goTab(3), icon: const Icon(Icons.bar_chart), label: const Text('Statistics'))),
-            const SizedBox(width: 8),
-            Expanded(child: OutlinedButton.icon(onPressed: () => push(const LeaderboardScreen()), icon: const Icon(Icons.leaderboard), label: const Text('Ranks'))),
-            const SizedBox(width: 8),
-            Expanded(child: OutlinedButton.icon(onPressed: () => push(const SettingsScreen()), icon: const Icon(Icons.settings), label: const Text('Settings'))),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(_greeting, style: const TextStyle(color: C.text2, fontSize: 13, fontWeight: FontWeight.w600)),
+                  Text(st.username, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 21, letterSpacing: -0.3), overflow: TextOverflow.ellipsis),
+                ]),
+              ),
+              IconButton(onPressed: () => push(const SettingsScreen()), icon: const Icon(Icons.settings_outlined), style: IconButton.styleFrom(backgroundColor: Colors.white)),
+            ])),
+            const SizedBox(height: 16),
+            r(BannerCard(
+              image: 'assets/images/banner_play.jpg',
+              title: 'Play Now',
+              subtitle: 'Start a new game vs AI\nor a friend',
+              height: 168,
+              cta: 'Start',
+              onTap: () => widget.goTab(1),
+            )),
+            r(Row(children: [
+              Expanded(child: StatTile(icon: Icons.workspace_premium, color: C.warning, value: '${st.rating}', label: 'Rating')),
+              const SizedBox(width: 10),
+              Expanded(child: StatTile(icon: Icons.emoji_events, color: C.success, value: '${st.wins}', label: 'Wins')),
+            ])),
+            const SizedBox(height: 10),
+            r(Row(children: [
+              Expanded(child: StatTile(icon: Icons.percent, color: C.primary, value: '${st.winRate}%', label: 'Win rate')),
+              const SizedBox(width: 10),
+              Expanded(child: StatTile(icon: Icons.star, color: const Color(0xFF8B5CF6), value: '${st.puzzlePoints}', label: 'Puzzle points')),
+            ])),
+            if (sv != null) ...[
+              const SizedBox(height: 12),
+              r(Pressable(
+                onTap: () => push(GameScreen(mode: sv.mode, humanColor: sv.userColor, aiLevel: sv.aiLevel, tcIndex: sv.tcIndex, resume: sv)),
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: cardDeco(radius: 20),
+                  child: Row(children: [
+                    const IconBubble(Icons.play_circle_fill, color: C.success),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        const Text('Continue your game', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                        Text('${sv.ucis.length} moves played · ${sv.mode == 'ai' ? 'vs AI' : 'Pass & Play'}', style: const TextStyle(color: C.text2, fontSize: 12.5)),
+                      ]),
+                    ),
+                    const Icon(Icons.chevron_right, color: C.text2),
+                  ]),
+                ),
+              )),
+            ],
+            r(const SectionTitle('Play')),
+            r(BannerCard(
+              image: 'assets/images/banner_online.jpg',
+              title: 'Online Multiplayer',
+              subtitle: 'Friends, challenges & ranked',
+              badge: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                decoration: BoxDecoration(color: Colors.white.withAlpha(235), borderRadius: BorderRadius.circular(12)),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: online ? C.success : C.text2), const SizedBox(width: 5), Text(online ? 'Online' : 'Sign in', style: TextStyle(color: online ? C.success : C.text2, fontSize: 11.5, fontWeight: FontWeight.w800))]),
+              ),
+              onTap: () => push(const OnlineHubScreen()),
+            )),
+            r(BannerCard(image: 'assets/images/banner_ai.jpg', title: 'vs Stockfish AI', subtitle: 'Four levels, works offline', onTap: () => widget.goTab(1))),
+            r(const SectionTitle('Daily puzzle')),
+            r(Pressable(
+              onTap: () => push(PuzzleScreen(puzzle: daily)),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: cardDeco(radius: 22),
+                child: Row(children: [
+                  ClipRRect(borderRadius: BorderRadius.circular(14), child: SizedBox(width: 96, child: MiniBoard(daily.fen, pieceSet: app.settings.pieceSet, theme: app.boardTheme))),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(daily.category, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                      const SizedBox(height: 3),
+                      Text('${daily.title} · ${daily.difficulty}', style: const TextStyle(color: C.text2, fontSize: 12.5)),
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(color: dailyDone ? C.success.withAlpha(28) : C.primary, borderRadius: BorderRadius.circular(16)),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(dailyDone ? Icons.check_circle : Icons.bolt, size: 16, color: dailyDone ? C.success : Colors.white),
+                          const SizedBox(width: 5),
+                          Text(dailyDone ? 'Completed' : 'Solve +${daily.points}', style: TextStyle(color: dailyDone ? C.success : Colors.white, fontWeight: FontWeight.w800, fontSize: 13)),
+                        ]),
+                      ),
+                    ]),
+                  ),
+                ]),
+              ),
+            )),
+            const SizedBox(height: 12),
+            r(Row(children: [
+              Expanded(child: BannerCard(image: 'assets/images/banner_puzzles.jpg', title: 'Puzzles', subtitle: 'Sharpen tactics', height: 120, onTap: () => widget.goTab(2))),
+              const SizedBox(width: 10),
+              Expanded(child: BannerCard(image: 'assets/images/banner_learn.jpg', title: 'Learn', subtitle: 'Lessons & tips', height: 120, onTap: () => push(const LearnScreen()))),
+            ])),
+            r(Row(children: [
+              Expanded(child: OutlinedButton.icon(onPressed: () => widget.goTab(3), icon: const Icon(Icons.bar_chart), label: const Text('Statistics'))),
+              const SizedBox(width: 8),
+              Expanded(child: OutlinedButton.icon(onPressed: () => push(const LeaderboardScreen()), icon: const Icon(Icons.leaderboard), label: const Text('Ranks'))),
+            ])),
+            const SizedBox(height: 8),
           ]),
-        ]),
+        ),
       ),
     );
   }

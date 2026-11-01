@@ -8,6 +8,7 @@ import '../../services/audio_service.dart';
 import '../../services/chess_service/chess_game.dart';
 import '../../services/stockfish_service/engine_service.dart';
 import '../../widgets/cards/common.dart';
+import '../../widgets/cards/ui_kit.dart';
 import '../../widgets/chessboard/chess_board.dart';
 
 class PuzzlesScreen extends StatefulWidget {
@@ -31,47 +32,93 @@ class _PuzzlesScreenState extends State<PuzzlesScreen> {
       ]),
       body: SafeArea(
         child: ListView(padding: const EdgeInsets.all(16), children: [
-          AppCard(
-            onTap: () => open(daily),
-            child: Row(children: [
-              Container(width: 48, height: 48, decoration: BoxDecoration(color: C.primary, borderRadius: BorderRadius.circular(12)), child: const Icon(Icons.extension, color: Colors.white)),
-              const SizedBox(width: 14),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text('Daily Puzzle', style: TextStyle(fontWeight: FontWeight.w700)),
-                Text(app.stats.solved.contains(daily.id) ? 'Completed today ✓ · ${daily.category}' : "Solve today's puzzle · ${daily.category}", style: const TextStyle(color: C.text2, fontSize: 12.5)),
-              ])),
-              const Icon(Icons.chevron_right, color: C.text2),
-            ]),
+          Reveal(
+            child: BannerCard(
+              image: 'assets/images/banner_puzzles.jpg',
+              title: 'Daily Puzzle',
+              subtitle: app.stats.solved.contains(daily.id) ? 'Completed today ✓ · ${daily.category}' : "${daily.category} · +${daily.points} points",
+              height: 130,
+              cta: app.stats.solved.contains(daily.id) ? 'Replay' : 'Solve',
+              onTap: () => open(daily),
+            ),
           ),
-          Row(children: [
-            for (final f in ['All', 'Easy', 'Medium', 'Hard'])
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: ChoiceChip(label: Text(f), selected: filter == f, onSelected: (_) => setState(() => filter = f), selectedColor: C.primary, showCheckmark: false, side: BorderSide.none, backgroundColor: C.softBlue, labelStyle: TextStyle(color: filter == f ? Colors.white : C.text, fontWeight: FontWeight.w600)),
-              ),
-          ]),
-          const SizedBox(height: 8),
-          Text('${app.stats.solved.length}/${kPuzzles.length} solved', style: const TextStyle(color: C.text2, fontSize: 12.5)),
-          const SizedBox(height: 8),
-          if (list.isEmpty) const EmptyState(icon: Icons.extension_off, title: 'No puzzles', message: 'No puzzles in this category.'),
-          for (final p in list)
-            AppCard(
-              onTap: () => open(p),
-              padding: const EdgeInsets.all(10),
-              child: Row(children: [
-                SizedBox(width: 56, child: MiniBoard(p.fen, pieceSet: app.settings.pieceSet, theme: app.boardTheme)),
-                const SizedBox(width: 12),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(p.category, style: const TextStyle(fontWeight: FontWeight.w700)),
-                  Text('${p.title} · ${p.difficulty}', style: const TextStyle(color: C.text2, fontSize: 12.5)),
-                ])),
-                if (app.stats.solved.contains(p.id)) const Icon(Icons.check_circle, color: C.success) else Row(children: [const Icon(Icons.star, color: C.warning, size: 16), Text('+${p.points}', style: const TextStyle(color: C.warning, fontWeight: FontWeight.w700))]),
+          Reveal(
+            index: 1,
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: cardDeco(radius: 18),
+              child: Column(children: [
+                Row(children: [
+                  const Icon(Icons.insights, color: C.primary, size: 20),
+                  const SizedBox(width: 8),
+                  Text('${app.stats.solved.length} of ${kPuzzles.length} solved', style: const TextStyle(fontWeight: FontWeight.w800)),
+                  const Spacer(),
+                  Text('${kPuzzles.isEmpty ? 0 : (app.stats.solved.length * 100 / kPuzzles.length).round()}%', style: const TextStyle(color: C.primary, fontWeight: FontWeight.w900)),
+                ]),
+                const SizedBox(height: 10),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0, end: kPuzzles.isEmpty ? 0 : app.stats.solved.length / kPuzzles.length),
+                    duration: const Duration(milliseconds: 700),
+                    curve: Curves.easeOutCubic,
+                    builder: (_, v, __) => LinearProgressIndicator(value: v, minHeight: 9, backgroundColor: C.softBlue, color: C.primary),
+                  ),
+                ),
               ]),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Wrap(spacing: 10, runSpacing: 8, children: [
+            for (final f in ['All', 'Easy', 'Medium', 'Hard']) ChoicePill(f, filter == f, () => setState(() => filter = f)),
+          ]),
+          const SizedBox(height: 14),
+          if (list.isEmpty) const EmptyState(icon: Icons.extension_off, title: 'No puzzles', message: 'No puzzles in this category.'),
+          for (int i = 0; i < list.length; i++)
+            Reveal(
+              index: i + 2,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Pressable(
+                  onTap: () => open(list[i]),
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: cardDeco(radius: 20),
+                    child: Row(children: [
+                      ClipRRect(borderRadius: BorderRadius.circular(12), child: SizedBox(width: 84, child: MiniBoard(list[i].fen, pieceSet: app.settings.pieceSet, theme: app.boardTheme))),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(list[i].category, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15.5)),
+                          const SizedBox(height: 3),
+                          Text(list[i].title, style: const TextStyle(color: C.text2, fontSize: 12.5)),
+                          const SizedBox(height: 8),
+                          Row(children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                              decoration: BoxDecoration(color: _diffColor(list[i].difficulty).withAlpha(28), borderRadius: BorderRadius.circular(10)),
+                              child: Text(list[i].difficulty, style: TextStyle(color: _diffColor(list[i].difficulty), fontWeight: FontWeight.w800, fontSize: 11.5)),
+                            ),
+                            const SizedBox(width: 8),
+                            const Icon(Icons.star, color: C.warning, size: 15),
+                            Text(' +${list[i].points}', style: const TextStyle(color: C.warning, fontWeight: FontWeight.w800, fontSize: 12.5)),
+                          ]),
+                        ]),
+                      ),
+                      app.stats.solved.contains(list[i].id)
+                          ? const Icon(Icons.check_circle, color: C.success, size: 28)
+                          : const Icon(Icons.play_circle_outline, color: C.primary, size: 28),
+                    ]),
+                  ),
+                ),
+              ),
             ),
         ]),
       ),
     );
   }
+
+  Color _diffColor(String d) => d == 'Easy' ? C.success : (d == 'Medium' ? C.warning : C.error);
 }
 
 class PuzzleScreen extends StatefulWidget {

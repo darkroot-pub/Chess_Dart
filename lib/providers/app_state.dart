@@ -38,6 +38,13 @@ class AppState extends ChangeNotifier {
   Future<void> init() async {
     await storage.init();
     settings = storage.loadSettings();
+    if (!storage.uiV2) {
+      // one-time: switch existing installs to the new 3D pieces + Ocean board
+      settings.pieceSet = 'lowpoly3d';
+      settings.boardTheme = 6;
+      await storage.saveSettings(settings);
+      await storage.setUiV2();
+    }
     stats = storage.loadStats();
     history = storage.loadHistory();
     saved = storage.loadSavedGame();

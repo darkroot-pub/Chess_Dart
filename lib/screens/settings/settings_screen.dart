@@ -66,19 +66,19 @@ class SettingsPanel extends StatelessWidget {
       const Text('Piece style', style: TextStyle(fontWeight: FontWeight.w700)),
       const SizedBox(height: 8),
       SizedBox(
-        height: 74,
+        height: 84,
         child: ListView(scrollDirection: Axis.horizontal, children: [
           for (final name in kPieceSets)
             GestureDetector(
               onTap: () => app.updateSettings((x) => x.pieceSet = name),
               child: Container(
                 margin: const EdgeInsets.only(right: 10),
-                width: 74,
+                width: 82,
                 padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(color: app.boardTheme.light, borderRadius: BorderRadius.circular(12), border: Border.all(color: s.pieceSet == name ? C.primary : C.border, width: s.pieceSet == name ? 3 : 1)),
                 child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Row(mainAxisAlignment: MainAxisAlignment.center, children: [PieceImage(makePiece(kN, kWhite), name, 28), PieceImage(makePiece(kN, kBlack), name, 28)]),
-                  Text(name, style: const TextStyle(fontSize: 9, color: C.text), overflow: TextOverflow.ellipsis),
+                  Row(mainAxisAlignment: MainAxisAlignment.center, children: [PieceImage(makePiece(kN, kWhite), name, 32), PieceImage(makePiece(kN, kBlack), name, 32)]),
+                  Text(name == 'lowpoly3d' ? '3D Low-poly' : (name[0].toUpperCase() + name.substring(1)), style: const TextStyle(fontSize: 10, color: C.text, fontWeight: FontWeight.w700), overflow: TextOverflow.ellipsis),
                 ]),
               ),
             ),

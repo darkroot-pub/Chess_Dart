@@ -53,6 +53,9 @@ class StorageService {
   String get lastEmail => _p.getString('lastEmail') ?? '';
   Future<void> setLastEmail(String e) => _p.setString('lastEmail', e);
 
+  bool get uiV2 => _p.getBool('uiV2') ?? false;
+  Future<void> setUiV2() => _p.setBool('uiV2', true);
+
   bool get onboarded => _p.getBool('onboarded') ?? false;
   Future<void> setOnboarded() => _p.setBool('onboarded', true);
 }

@@ -7,6 +7,7 @@ import '../../providers/app_state.dart';
 import '../../services/chess_service/chess_game.dart';
 import '../../services/multiplayer_service/supabase_service.dart';
 import '../../widgets/cards/common.dart';
+import '../../widgets/cards/ui_kit.dart';
 import '../../widgets/chessboard/chess_board.dart';
 import '../multiplayer/online_hub_screen.dart';
 import 'game_screen.dart';
@@ -51,64 +52,42 @@ class _PlaySetupScreenState extends State<PlaySetupScreen> {
     );
   }
 
-  Widget _header(String set) => SizedBox(
-        height: 250,
-        child: Stack(clipBehavior: Clip.none, children: [
-          // 3D low-poly board rendered from the model (see CREDITS.md)
-          Positioned(right: -70, top: 0, child: Image.asset('assets/images/board3d.png', width: 300, fit: BoxFit.contain, filterQuality: FilterQuality.medium)),
-          Positioned(
-            left: 4, top: 8,
-            child: widget.showBack
-                ? IconButton(onPressed: () => Navigator.of(context).maybePop(), icon: const Icon(Icons.arrow_back), style: IconButton.styleFrom(backgroundColor: Colors.white70))
-                : Container(
-                    width: 60, height: 60,
-                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF3B82F6), Color(0xFF1D4ED8)]), boxShadow: const [BoxShadow(color: Color(0x552563EB), blurRadius: 14, offset: Offset(0, 6))]),
-                    child: Center(child: PieceImage(makePiece(kN, kWhite), 'lowpoly3d', 44)),
-                  ),
-          ),
-          const Positioned(
-            left: 4, bottom: 22,
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Game Settings', style: TextStyle(fontSize: 34, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
-              SizedBox(height: 4),
-              Text('Customize your chess experience', style: TextStyle(fontSize: 16, color: C.text2)),
-            ]),
-          ),
-        ]),
-      );
+  Widget _header(String set) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        SizedBox(
+          height: 150,
+          child: Stack(clipBehavior: Clip.none, children: [
+            // 3D low-poly board rendered from the model (see CREDITS.md)
+            Positioned(right: -24, top: -6, child: Image.asset('assets/images/board3d.png', width: 215, fit: BoxFit.contain, filterQuality: FilterQuality.medium)),
+            Positioned(
+              left: 0, top: 6,
+              child: widget.showBack
+                  ? IconButton(onPressed: () => Navigator.of(context).maybePop(), icon: const Icon(Icons.arrow_back), style: IconButton.styleFrom(backgroundColor: Colors.white70))
+                  : Container(
+                      width: 64, height: 64,
+                      decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF3B82F6), Color(0xFF1D4ED8)]), boxShadow: const [BoxShadow(color: Color(0x552563EB), blurRadius: 14, offset: Offset(0, 6))]),
+                      child: Center(child: PieceImage(makePiece(kN, kWhite), 'lowpoly3d', 48)),
+                    ),
+            ),
+          ]),
+        ),
+        const Text('Game Settings', style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
+        const SizedBox(height: 2),
+        const Text('Customize your chess experience', style: TextStyle(fontSize: 15.5, color: C.text2)),
+      ]);
 
   Widget _onlineCard() {
     final sb = SupabaseService.instance;
     final (label, col) = !sb.available ? ('Offline', C.text2) : (sb.signedIn ? ('Online', C.success) : ('Sign in', C.primary));
-    return GestureDetector(
-      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const OnlineHubScreen())),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(22), boxShadow: const [BoxShadow(color: Color(0x1A2563EB), blurRadius: 16, offset: Offset(0, 6))]),
-        child: Stack(children: [
-          Row(children: [
-            Image.asset('assets/images/earth.png', width: 74, height: 74, fit: BoxFit.contain),
-            const SizedBox(width: 16),
-            const Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                SizedBox(height: 6),
-                Text('Online Multiplayer', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 19)),
-                SizedBox(height: 6),
-                Text('Play with real players,\nfriends & challenges', style: TextStyle(color: C.text2, fontSize: 14.5)),
-              ]),
-            ),
-            const Icon(Icons.chevron_right, size: 30, color: C.text),
-          ]),
-          Positioned(
-            right: 30, top: 0,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(color: col.withAlpha(28), borderRadius: BorderRadius.circular(12)),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 9, color: col), const SizedBox(width: 5), Text(label, style: TextStyle(color: col, fontWeight: FontWeight.w700, fontSize: 13))]),
-            ),
-          ),
-        ]),
+    return BannerCard(
+      image: 'assets/images/banner_online.jpg',
+      title: 'Online Multiplayer',
+      subtitle: 'Friends, challenges & ranked',
+      badge: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(color: Colors.white.withAlpha(235), borderRadius: BorderRadius.circular(12)),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 9, color: col), const SizedBox(width: 5), Text(label, style: TextStyle(color: col, fontWeight: FontWeight.w800, fontSize: 12))]),
       ),
+      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const OnlineHubScreen())),
     );
   }
 

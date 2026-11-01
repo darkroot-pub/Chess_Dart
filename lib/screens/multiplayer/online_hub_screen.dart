@@ -6,6 +6,7 @@ import '../../core/constants/constants.dart';
 import '../../core/theme/app_theme.dart';
 import '../../services/multiplayer_service/supabase_service.dart';
 import '../../widgets/cards/common.dart';
+import '../../widgets/cards/ui_kit.dart';
 import '../../providers/app_state.dart';
 import 'friends_screen.dart';
 import 'online_game_screen.dart';
@@ -92,7 +93,25 @@ class _OnlineHubScreenState extends State<OnlineHubScreen> {
   }
 
   Widget _auth() => ListView(padding: const EdgeInsets.all(16), children: [
-        const Text('Sign in to play online', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+        Reveal(
+          child: Container(
+            height: 190,
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(26), boxShadow: const [BoxShadow(color: Color(0x332563EB), blurRadius: 18, offset: Offset(0, 8))]),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(26),
+              child: Stack(fit: StackFit.expand, children: [
+                Image.asset('assets/images/banner_auth.jpg', fit: BoxFit.cover),
+                const DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0x00000000), Color(0x99000000)]))),
+                const Positioned(left: 18, bottom: 14, right: 18, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Play chess online', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900)),
+                  Text('Challenge friends and climb the ranks', style: TextStyle(color: Color(0xE6FFFFFF), fontSize: 13.5)),
+                ])),
+              ]),
+            ),
+          ),
+        ),
+        Text(signUp ? 'Create your account' : 'Welcome back', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
         const SizedBox(height: 12),
         if (signUp) TextField(controller: name, decoration: const InputDecoration(labelText: 'Username', border: OutlineInputBorder())),
         if (signUp) const SizedBox(height: 10),
@@ -130,19 +149,19 @@ class _OnlineHubScreenState extends State<OnlineHubScreen> {
           if (error != null) Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(error!, style: const TextStyle(color: C.error))),
           const Text('Time control', style: TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: 6),
-          Wrap(spacing: 8, children: [
-            for (int i = 0; i < kTimeControls.length - 1; i++)
-              ChoiceChip(label: Text(kTimeControls[i].label), selected: tc == i, onSelected: (_) => setState(() => tc = i), selectedColor: C.primary, showCheckmark: false, side: BorderSide.none, backgroundColor: C.softBlue, labelStyle: TextStyle(color: tc == i ? Colors.white : C.text)),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            for (int i = 0; i < kTimeControls.length - 1; i++) ChoicePill(kTimeControls[i].label, tc == i, () => setState(() => tc = i)),
           ]),
-          const SizedBox(height: 12),
-          NavTile(icon: Icons.group, color: C.success, title: 'Friends & Challenges', subtitle: 'Challenge friends, get invitations', onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FriendsScreen()))),
-          AppCard(
-            child: Column(children: [
-              Row(children: [const IconBubble(Icons.public), const SizedBox(width: 12), const Expanded(child: Text('Quick Match\nFind an opponent instantly', style: TextStyle(fontWeight: FontWeight.w700)))]),
-              const SizedBox(height: 10),
-              ElevatedButton(onPressed: busy ? null : () => _run(() async => _openGame(await sb.quickMatch(kTimeControls[tc].minutes, kTimeControls[tc].inc))), child: const Text('Play')),
-            ]),
+          const SizedBox(height: 14),
+          BannerCard(
+            image: 'assets/images/banner_online.jpg',
+            title: 'Quick Match',
+            subtitle: 'Find an opponent instantly',
+            height: 132,
+            cta: busy ? 'Searching…' : 'Play',
+            onTap: () { if (!busy) _run(() async => _openGame(await sb.quickMatch(kTimeControls[tc].minutes, kTimeControls[tc].inc))); },
           ),
+          NavTile(icon: Icons.group, color: C.success, title: 'Friends & Challenges', subtitle: 'Challenge friends, get invitations', onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FriendsScreen()))),
           AppCard(
             child: Column(children: [
               Row(children: [const IconBubble(Icons.group, color: C.secondary), const SizedBox(width: 12), const Expanded(child: Text('Play with Friends\nPrivate room with a code', style: TextStyle(fontWeight: FontWeight.w700)))]),

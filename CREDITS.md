@@ -1,7 +1,7 @@
 # Credits
 
 ## 3D chess set
-`assets/pieces/lowpoly3d/*.png` and `assets/images/board3d.png` were rendered from
+`assets/pieces/lowpoly3d/*.png`, `assets/images/board3d.png` and `assets/images/banner_*.jpg` were rendered from
 **"Low Poly Chess Set"** by [hanoldaa](https://sketchfab.com/hanoldaa)
 (https://sketchfab.com/3d-models/low-poly-chess-set-0f440e2b01ca42f8b3fdee8178c51f20),
 licensed under [CC-BY-4.0](http://creativecommons.org/licenses/by/4.0/). Changes: pieces were separated,

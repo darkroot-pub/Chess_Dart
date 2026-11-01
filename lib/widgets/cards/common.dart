@@ -110,10 +110,18 @@ class PlayerBar extends StatelessWidget {
   final String? avatarUrl;
   const PlayerBar({super.key, this.avatarUrl, required this.name, required this.sub, this.clockMs, this.active = false, this.bot = false, this.captured = const [], this.pieceSet = 'cburnett', this.advantage = 0});
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
+  Widget build(BuildContext context) => AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+        decoration: BoxDecoration(
+          color: active ? C.softBlue : C.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: active ? C.primary.withAlpha(130) : C.border, width: active ? 1.5 : 1),
+          boxShadow: const [BoxShadow(color: Color(0x0F2563EB), blurRadius: 10, offset: Offset(0, 3))],
+        ),
         child: Row(children: [
-          Avatar(name, size: 38, bot: bot, url: avatarUrl),
+          Avatar(name, size: 40, bot: bot, url: avatarUrl),
           const SizedBox(width: 10),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

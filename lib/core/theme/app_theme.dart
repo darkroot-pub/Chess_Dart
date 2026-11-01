@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
 
 class C {
@@ -39,6 +40,10 @@ class AppTheme {
             textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
           ),
         ),
+        pageTransitionsTheme: const PageTransitionsTheme(builders: {
+          TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        }),
         textTheme: const TextTheme().apply(bodyColor: C.text, displayColor: C.text),
       );
 }
