@@ -26,6 +26,7 @@ flutter:
   assets:
     - assets/sounds/
     - assets/images/
+    - assets/pieces/lowpoly3d/
     - assets/pieces/alpha/
     - assets/pieces/anarcandy/
     - assets/pieces/caliente/

@@ -107,12 +107,13 @@ class PlayerBar extends StatelessWidget {
   final List<int> captured;
   final String pieceSet;
   final int advantage;
-  const PlayerBar({super.key, required this.name, required this.sub, this.clockMs, this.active = false, this.bot = false, this.captured = const [], this.pieceSet = 'cburnett', this.advantage = 0});
+  final String? avatarUrl;
+  const PlayerBar({super.key, this.avatarUrl, required this.name, required this.sub, this.clockMs, this.active = false, this.bot = false, this.captured = const [], this.pieceSet = 'cburnett', this.advantage = 0});
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 6),
         child: Row(children: [
-          Avatar(name, size: 38, bot: bot),
+          Avatar(name, size: 38, bot: bot, url: avatarUrl),
           const SizedBox(width: 10),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

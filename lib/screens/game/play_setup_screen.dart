@@ -54,11 +54,8 @@ class _PlaySetupScreenState extends State<PlaySetupScreen> {
   Widget _header(String set) => SizedBox(
         height: 250,
         child: Stack(clipBehavior: Clip.none, children: [
-          // chess pieces from the selected piece set, as the hero artwork
-          Positioned(right: -34, top: 6, child: Opacity(opacity: 0.18, child: PieceImage(makePiece(kP, kBlack), set, 120))),
-          Positioned(right: 108, top: 40, child: Opacity(opacity: 0.32, child: PieceImage(makePiece(kB, kBlack), set, 110))),
-          Positioned(right: 36, top: 30, child: Opacity(opacity: 0.55, child: PieceImage(makePiece(kQ, kBlack), set, 130))),
-          Positioned(right: -6, top: -4, child: PieceImage(makePiece(kK, kBlack), set, 190)),
+          // 3D low-poly board rendered from the model (see CREDITS.md)
+          Positioned(right: -70, top: 0, child: Image.asset('assets/images/board3d.png', width: 300, fit: BoxFit.contain, filterQuality: FilterQuality.medium)),
           Positioned(
             left: 4, top: 8,
             child: widget.showBack
@@ -66,7 +63,7 @@ class _PlaySetupScreenState extends State<PlaySetupScreen> {
                 : Container(
                     width: 60, height: 60,
                     decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF3B82F6), Color(0xFF1D4ED8)]), boxShadow: const [BoxShadow(color: Color(0x552563EB), blurRadius: 14, offset: Offset(0, 6))]),
-                    child: Center(child: PieceImage(makePiece(kN, kWhite), set, 42)),
+                    child: Center(child: PieceImage(makePiece(kN, kWhite), 'lowpoly3d', 44)),
                   ),
           ),
           const Positioned(

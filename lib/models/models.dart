@@ -2,8 +2,8 @@ import 'dart:convert';
 
 class AppSettings {
   bool sound = true, vibration = true, showLegal = true, autoQueen = false, coords = true;
-  int boardTheme = 0;
-  String pieceSet = 'cburnett';
+  int boardTheme = 6; // Ocean
+  String pieceSet = 'lowpoly3d';
   Map<String, dynamic> toJson() => {
         'sound': sound, 'vibration': vibration, 'showLegal': showLegal, 'autoQueen': autoQueen,
         'coords': coords, 'boardTheme': boardTheme, 'pieceSet': pieceSet,
@@ -15,8 +15,8 @@ class AppSettings {
     s.showLegal = j['showLegal'] ?? true;
     s.autoQueen = j['autoQueen'] ?? false;
     s.coords = j['coords'] ?? true;
-    s.boardTheme = j['boardTheme'] ?? 0;
-    s.pieceSet = j['pieceSet'] ?? 'cburnett';
+    s.boardTheme = j['boardTheme'] ?? 6;
+    s.pieceSet = j['pieceSet'] ?? 'lowpoly3d';
     return s;
   }
 }

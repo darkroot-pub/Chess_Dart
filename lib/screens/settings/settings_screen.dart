@@ -84,6 +84,28 @@ class SettingsPanel extends StatelessWidget {
             ),
         ]),
       ),
+      const SizedBox(height: 18),
+      ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: const Icon(Icons.info_outline, color: C.primary),
+        title: const Text('Credits & licenses', style: TextStyle(fontWeight: FontWeight.w600)),
+        onTap: () => showDialog(
+          context: context,
+          builder: (d) => AlertDialog(
+            title: const Text('Credits'),
+            content: const SingleChildScrollView(
+              child: Text(
+                '3D chess pieces and board art are based on "Low Poly Chess Set" by hanoldaa '
+                '(https://sketchfab.com/3d-models/low-poly-chess-set-0f440e2b01ca42f8b3fdee8178c51f20), '
+                'licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/). '
+                'Images were rendered from the model.\n\n'
+                'Other piece sets: lichess.org (see their licenses). Chess engine: Stockfish (GPL).',
+              ),
+            ),
+            actions: [TextButton(onPressed: () => Navigator.pop(d), child: const Text('OK'))],
+          ),
+        ),
+      ),
     ]);
   }
 }

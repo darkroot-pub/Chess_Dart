@@ -1,0 +1,49 @@
+<!doctype html><html><body style="margin:0;background:transparent">
+<canvas id="c" width="512" height="512"></canvas>
+<script>
+const canvas=document.getElementById('c');
+const gl=canvas.getContext('webgl',{alpha:true,premultipliedAlpha:false,antialias:true,preserveDrawingBuffer:true});
+const vs=`attribute vec3 p;attribute vec3 n;uniform mat4 M;uniform mat4 V;uniform vec2 S;uniform vec2 O;varying vec3 vn;varying vec3 vp;
+void main(){vec4 w=M*vec4(p,1.0);vn=mat3(M)*n;vp=w.xyz;vec4 v=V*w;gl_Position=vec4(v.x*S.x+O.x,v.y*S.y+O.y,-v.z*0.01,1.0);}`;
+const fs=`precision mediump float;varying vec3 vn;varying vec3 vp;uniform vec3 C;
+void main(){vec3 N=normalize(vn);
+vec3 L1=normalize(vec3(-0.5,0.9,-0.6));vec3 L2=normalize(vec3(0.7,0.35,-0.4));vec3 L3=normalize(vec3(0.0,0.3,0.9));
+float d=max(dot(N,L1),0.0)*0.75+max(dot(N,L2),0.0)*0.28+max(dot(N,L3),0.0)*0.18;
+float amb=0.38+0.22*N.y;
+vec3 base=pow(C,vec3(1.0/2.2));
+vec3 col=base*(amb+d);
+float rim=pow(1.0-max(dot(N,normalize(vec3(0.0,0.35,-1.0))),0.0),2.5);
+col+=rim*0.10*(0.4+base);
+vec3 H=normalize(L1+normalize(vec3(0.0,0.4,-1.0)));
+col+=pow(max(dot(N,H),0.0),40.0)*0.12;
+gl_FragColor=vec4(clamp(col,0.0,1.0),1.0);}`;
+function sh(t,s){const x=gl.createShader(t);gl.shaderSource(x,s);gl.compileShader(x);if(!gl.getShaderParameter(x,gl.COMPILE_STATUS))throw gl.getShaderInfoLog(x);return x}
+const pr=gl.createProgram();gl.attachShader(pr,sh(gl.VERTEX_SHADER,vs));gl.attachShader(pr,sh(gl.FRAGMENT_SHADER,fs));gl.linkProgram(pr);gl.useProgram(pr);
+const loc=n=>gl.getAttribLocation(pr,n),U=n=>gl.getUniformLocation(pr,n);
+function mul(a,b){const o=new Array(16).fill(0);for(let i=0;i<4;i++)for(let j=0;j<4;j++)for(let k=0;k<4;k++)o[j*4+i]+=a[k*4+i]*b[j*4+k];return o}
+function rotY(a){const c=Math.cos(a),s=Math.sin(a);return [c,0,-s,0, 0,1,0,0, s,0,c,0, 0,0,0,1]}
+function rotX(a){const c=Math.cos(a),s=Math.sin(a);return [1,0,0,0, 0,c,s,0, 0,-s,c,0, 0,0,0,1]}
+function trans(x,y,z){return [1,0,0,0,0,1,0,0,0,0,1,0,x,y,z,1]}
+// parts: [{pos,nor,idx,color}] ; opts: yaw, elev, scale(px per unit), cx,cz,ybase, outW,outH, ox,oy (ndc offset)
+window.render=function(parts,o){
+  canvas.width=o.W;canvas.height=o.H;gl.viewport(0,0,o.W,o.H);
+  gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.enable(gl.DEPTH_TEST);
+  // model: move to origin, then yaw, then tilt toward camera
+  const M=mul(rotY(o.yaw),trans(-o.cx,-o.cy,-o.cz));
+  const V=rotX(o.elev);
+  gl.uniformMatrix4fv(U('M'),false,new Float32Array(M));
+  gl.uniformMatrix4fv(U('V'),false,new Float32Array(V));
+  gl.uniform2f(U('S'),o.sx,o.sy);gl.uniform2f(U('O'),o.ox||0,o.oy||0);
+  for(const p of parts){
+    const pb=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,pb);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(p.pos.flat()),gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(loc('p'));gl.vertexAttribPointer(loc('p'),3,gl.FLOAT,false,0,0);
+    const nb=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,nb);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(p.nor.flat()),gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(loc('n'));gl.vertexAttribPointer(loc('n'),3,gl.FLOAT,false,0,0);
+    const ib=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,ib);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint32Array(p.idx),gl.STATIC_DRAW);
+    gl.getExtension('OES_element_index_uint');
+    gl.uniform3f(U('C'),p.color[0],p.color[1],p.color[2]);
+    gl.drawElements(gl.TRIANGLES,p.idx.length,gl.UNSIGNED_INT,0);
+  }
+  return canvas.toDataURL('image/png');
+}
+</script></body></html>

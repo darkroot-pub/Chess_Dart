@@ -9,7 +9,7 @@ class SupabaseConfig {
 }
 
 const List<String> kPieceSets = [
-  'cburnett', 'merida', 'alpha', 'staunty', 'cardinal', 'governor', 'california', 'caliente', 'anarcandy',
+  'lowpoly3d', 'cburnett', 'merida', 'alpha', 'staunty', 'cardinal', 'governor', 'california', 'caliente', 'anarcandy',
   'celtic', 'chess7', 'chessnut', 'companion', 'cooke', 'dubrovny', 'fantasy', 'firi', 'fresca', 'gioco',
   'horsey', 'icpieces', 'pixel', 'spatial',
 ];
@@ -27,6 +27,7 @@ const List<BoardTheme> kBoardThemes = [
   BoardTheme('Royal', Color(0xFFE8F0FF), Color(0xFF6B93D6)),
   BoardTheme('Walnut', Color(0xFFE2C9A0), Color(0xFF8B5E3C)),
   BoardTheme('Slate', Color(0xFFE5E7EB), Color(0xFF9CA3AF)),
+  BoardTheme('Ocean', Color(0xFFD9E5FB), Color(0xFF4A79D4)),
 ];
 
 class TimeControl {
