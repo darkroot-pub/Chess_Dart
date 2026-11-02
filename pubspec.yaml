@@ -1,5 +1,5 @@
 name: darkchess
-description: DarkChess - offline chess with Stockfish, move analysis and Supabase multiplayer.
+description: DarkChess - offline chess vs Dark Chess AI, move analysis and Supabase multiplayer.
 publish_to: "none"
 version: 1.0.0+1
 

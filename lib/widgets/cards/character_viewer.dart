@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
-/// Interactive "3D" character: 48 pre-rendered turntable frames scrubbed by drag.
+/// Interactive "3D" character: 72 pre-rendered turntable frames scrubbed by drag.
 /// Drag = rotate with inertia, pinch = zoom, double-tap = spin, idle = slow auto-rotate + floating bob.
 class CharacterViewer extends StatefulWidget {
-  static const frames = 48;
+  static const frames = 72;
   static String frame(int i) => 'assets/character/kindred/k${(i % frames).toString().padLeft(2, '0')}.webp';
   final bool interactive;
   final bool autoRotate;
@@ -29,9 +29,16 @@ class _CharacterViewerState extends State<CharacterViewer> with SingleTickerProv
   bool _ready = false;
   int _lastTick = -1;
 
+  ImageCache? _cache;
+  int? _oldMax;
+
   @override
   void initState() {
     super.initState();
+    // 72 decoded frames are ~110 MB; Flutter's default cache is 100 MB, which would thrash while rotating.
+    _cache = PaintingBinding.instance.imageCache;
+    _oldMax = _cache!.maximumSizeBytes;
+    if (widget.interactive) _cache!.maximumSizeBytes = 200 << 20;
     _ticker = createTicker(_tick)..start();
   }
 
@@ -40,7 +47,7 @@ class _CharacterViewerState extends State<CharacterViewer> with SingleTickerProv
     super.didChangeDependencies();
     if (!_ready) {
       _ready = true;
-      for (int i = 0; i < CharacterViewer.frames; i++) {
+      for (int i = 0; i < CharacterViewer.frames && widget.interactive; i++) {
         precacheImage(AssetImage(CharacterViewer.frame(i)), context);
       }
     }
@@ -48,6 +55,7 @@ class _CharacterViewerState extends State<CharacterViewer> with SingleTickerProv
 
   @override
   void dispose() {
+    if (_oldMax != null && widget.interactive) _cache?.maximumSizeBytes = _oldMax!;
     _ticker.dispose();
     super.dispose();
   }
@@ -119,6 +127,7 @@ class _CharacterViewerState extends State<CharacterViewer> with SingleTickerProv
           ),
         ]),
       );
+      body = RepaintBoundary(child: body);
       if (!widget.interactive) return body;
       return GestureDetector(
         behavior: HitTestBehavior.opaque,

@@ -190,7 +190,7 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
     bool ok = idx < line.length && m.uci == line[idx];
     if (!ok && p.mate && g.isCheckmate) ok = true; // any mate is fine
     if (!ok && p.mate && EngineService.instance.available || (!ok && p.mate)) {
-      // alternative forced mate? ask Stockfish
+      // alternative forced mate? ask the engine
       final lines = await EngineService.instance.analyse(g.fen, movetimeMs: 500);
       if (!mounted) return;
       if (lines.isNotEmpty && lines.first.mate != null && lines.first.mate! < 0 && -lines.first.mate! <= remainingUserMoves) {

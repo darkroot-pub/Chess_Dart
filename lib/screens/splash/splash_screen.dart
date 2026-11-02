@@ -31,7 +31,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
       await SupabaseService.instance.init();
       app.attachSupabase();
     } catch (_) {}
-    EngineService.instance.init(); // warm up Stockfish in the background
+    EngineService.instance.init(); // warm up the AI engine in the background
     final left = 1800 - DateTime.now().difference(t0).inMilliseconds;
     if (left > 0) await Future.delayed(Duration(milliseconds: left));
     if (!mounted) return;

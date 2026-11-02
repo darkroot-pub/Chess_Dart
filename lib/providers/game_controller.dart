@@ -82,8 +82,8 @@ class GameController extends ChangeNotifier {
   static final _r = Random();
 
   // ------------------------------------------------------------ naming
-  String get whiteName => mode == 'ai' ? (humanColor == kWhite ? app.stats.username : 'DarkChess AI') : 'Player 1';
-  String get blackName => mode == 'ai' ? (humanColor == kBlack ? app.stats.username : 'DarkChess AI') : 'Player 2';
+  String get whiteName => mode == 'ai' ? (humanColor == kWhite ? app.stats.username : 'Dark Chess AI') : 'Player 1';
+  String get blackName => mode == 'ai' ? (humanColor == kBlack ? app.stats.username : 'Dark Chess AI') : 'Player 2';
   String subFor(int color) {
     if (mode == 'ai') return color == humanColor ? '(${app.stats.rating})' : '(${level!.name} · ${level!.rating})';
     return color == kWhite ? 'White' : 'Black';
@@ -113,8 +113,16 @@ class GameController extends ChangeNotifier {
       _finish(loser == kWhite ? GameResult.blackWins : GameResult.whiteWins, 'Timeout');
       return;
     }
-    notifyListeners();
+    // Only repaint when the visible clock text would change (1x/sec, or 10x/sec under 10s).
+    final ms = game.turn == kWhite ? whiteMs : blackMs;
+    final key = ms < 10000 ? ms ~/ 100 : -(ms ~/ 1000) - 1;
+    if (key != _clockKey) {
+      _clockKey = key;
+      notifyListeners();
+    }
   }
+
+  int _clockKey = -1;
 
   // ------------------------------------------------------------ input
   void onTap(int sq) {

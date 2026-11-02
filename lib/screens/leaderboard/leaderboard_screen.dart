@@ -64,29 +64,69 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                         ? EmptyState(icon: Icons.error_outline, title: 'Could not load', message: error!, action: ElevatedButton(onPressed: _load, child: const Text('Retry')))
                         : rows.isEmpty
                             ? EmptyState(icon: Icons.groups, title: friends ? 'No friends yet' : 'No ranked players yet', message: friends ? 'Add friends from the Online Multiplayer screen.' : 'Play online to appear here.')
-                            : ListView.builder(
-                                padding: const EdgeInsets.symmetric(horizontal: 16),
-                                itemCount: rows.length,
-                                itemBuilder: (c, i) {
-                                  final r = rows[i];
-                                  final me = r['id'] == sb.user!.id;
-                                  final medal = [const Color(0xFFF59E0B), const Color(0xFF94A3B8), const Color(0xFFEA580C)];
-                                  return AppCard(
-                                    padding: const EdgeInsets.all(10),
-                                    child: Row(children: [
-                                      CircleAvatar(radius: 14, backgroundColor: i < 3 ? medal[i] : C.softBlue, child: Text('${i + 1}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: i < 3 ? Colors.white : C.text))),
-                                      const SizedBox(width: 10),
-                                      Avatar(r['username'] ?? '?', size: 34),
-                                      const SizedBox(width: 10),
-                                      Expanded(child: Text('${r['username']}${me ? ' (you)' : ''}', style: TextStyle(fontWeight: me ? FontWeight.w800 : FontWeight.w600, color: me ? C.primary : C.text))),
-                                      Text('${r['rating']}', style: const TextStyle(fontWeight: FontWeight.w800)),
-                                    ]),
-                                  );
-                                },
-                              ),
+                            : _board(),
           ),
         ]),
       ),
     );
+  }
+
+  Widget _podium(List<Map<String, dynamic>> top) {
+    // order: 2nd, 1st, 3rd
+    final order = [1, 0, 2];
+    final heights = [92.0, 120.0, 76.0];
+    final colors = [const Color(0xFF94A3B8), const Color(0xFFF59E0B), const Color(0xFFEA580C)];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+        for (int k = 0; k < 3; k++)
+          Expanded(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Avatar('${top[order[k]]['username']}', size: k == 1 ? 54 : 44),
+              const SizedBox(height: 4),
+              Text('${top[order[k]]['username']}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+              Text('${top[order[k]]['rating']}', style: const TextStyle(color: C.text2, fontSize: 12, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 6),
+              Container(
+                height: heights[k],
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                alignment: Alignment.topCenter,
+                padding: const EdgeInsets.only(top: 8),
+                decoration: BoxDecoration(color: colors[order[k]], borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
+                child: Text('${order[k] + 1}', style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w900)),
+              ),
+            ]),
+          ),
+      ]),
+    );
+  }
+
+  Widget _board() {
+    final showPodium = rows.length >= 3;
+    final rest = showPodium ? rows.sublist(3) : rows;
+    final offset = showPodium ? 3 : 0;
+    return ListView(padding: EdgeInsets.zero, children: [
+      if (showPodium) _podium(rows.sublist(0, 3)),
+      for (int j = 0; j < rest.length; j++)
+        Builder(builder: (_) {
+          final r = rest[j];
+          final i = j + offset;
+          final me = r['id'] == sb.user!.id;
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: AppCard(
+              padding: const EdgeInsets.all(10),
+              child: Row(children: [
+                CircleAvatar(radius: 14, backgroundColor: C.softBlue, child: Text('${i + 1}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: C.text))),
+                const SizedBox(width: 10),
+                Avatar(r['username'] ?? '?', size: 34),
+                const SizedBox(width: 10),
+                Expanded(child: Text('${r['username']}${me ? ' (you)' : ''}', style: TextStyle(fontWeight: me ? FontWeight.w800 : FontWeight.w600, color: me ? C.primary : C.text))),
+                Text('${r['rating']}', style: const TextStyle(fontWeight: FontWeight.w800)),
+              ]),
+            ),
+          );
+        }),
+    ]);
   }
 }

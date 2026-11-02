@@ -107,7 +107,7 @@ class SettingsPanel extends StatelessWidget {
                 'Images were rendered from the model.\n\n'
                 'Guardian character: "Spirit Blossom Kindred" (https://sketchfab.com/3d-models/spirit-blossom-kindred-85187f9f246f4702b7c137dcc6c0fc12) '
                 'by Retronous (https://sketchfab.com/Retronous) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/). Rendered to turntable frames.\n\n'
-                'Other piece sets: lichess.org (see their licenses). Chess engine: Stockfish (GPL).',
+                'Other piece sets: lichess.org (see their licenses). Dark Chess AI is powered by the open-source Stockfish engine (GPLv3, https://stockfishchess.org).',
               ),
             ),
             actions: [TextButton(onPressed: () => Navigator.pop(d), child: const Text('OK'))],

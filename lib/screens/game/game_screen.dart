@@ -157,13 +157,13 @@ class _GameViewState extends State<_GameView> {
         : c.paused
             ? 'Paused'
             : c.thinking
-                ? 'AI is thinking…'
+                ? 'Dark Chess AI is thinking…'
                 : (c.hintText ?? (g.inCheck ? 'Check!' : (c.humanTurn ? 'Your move' : '')));
 
     return Scaffold(
       appBar: AppBar(
         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(c.mode == 'ai' ? 'vs AI · ${c.level!.name}' : 'Pass & Play', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+          Text(c.mode == 'ai' ? 'vs Dark Chess AI · ${c.level!.name}' : 'Pass & Play', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
           Text(c.timeControl.untimed ? 'Unlimited' : '${c.timeControl.label} · ${c.timeControl.category}', style: const TextStyle(fontSize: 12, color: C.text2)),
         ]),
         actions: [
@@ -186,7 +186,7 @@ class _GameViewState extends State<_GameView> {
             Container(
               padding: const EdgeInsets.all(5),
               decoration: BoxDecoration(color: app.boardTheme.dark, borderRadius: BorderRadius.circular(18), boxShadow: const [BoxShadow(color: Color(0x332563EB), blurRadius: 18, offset: Offset(0, 8))]),
-              child: ClipRRect(borderRadius: BorderRadius.circular(13), child:
+              child: ClipRRect(borderRadius: BorderRadius.circular(13), child: RepaintBoundary(child:
             ChessBoardView(
               pieces: g.board,
               pieceSet: s.pieceSet,
@@ -204,7 +204,7 @@ class _GameViewState extends State<_GameView> {
               onTap: c.onTap,
               onDrop: c.onDrop,
               arrow: c.hint,
-            )),
+            ))),
             ),
             bar(botColor),
             SizedBox(
@@ -216,7 +216,7 @@ class _GameViewState extends State<_GameView> {
                       ? Row(children: [
                           const Icon(Icons.error_outline, size: 16, color: C.error),
                           const SizedBox(width: 6),
-                          const Expanded(child: Text('Stockfish could not start', style: TextStyle(color: C.error, fontSize: 13))),
+                          const Expanded(child: Text('Dark Chess AI could not start', style: TextStyle(color: C.error, fontSize: 13))),
                           TextButton(onPressed: c.retryEngine, child: const Text('Retry')),
                         ])
                       : Text(status, style: TextStyle(color: g.inCheck && !c.over ? C.error : C.text2, fontWeight: FontWeight.w800, fontSize: 14)),

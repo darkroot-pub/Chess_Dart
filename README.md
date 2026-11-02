@@ -1,6 +1,6 @@
 # DarkChess (Flutter Android)
 
-DarkChess is a Flutter chess app with offline play, Stockfish analysis, puzzles, lessons,
+DarkChess is a Flutter chess app with offline play, Dark Chess AI analysis, puzzles, lessons,
 profiles, and optional Supabase multiplayer.
 
 ## Build an APK with GitHub Actions

@@ -21,7 +21,7 @@ class PlaySetupScreen extends StatefulWidget {
   State<PlaySetupScreen> createState() => _PlaySetupScreenState();
 }
 
-const _levelDesc = ['A great start for beginners', 'A balanced challenge', 'For experienced players', 'Full-strength Stockfish'];
+const _levelDesc = ['A great start for beginners', 'A balanced challenge', 'For experienced players', 'Full strength, no mercy'];
 
 class _PlaySetupScreenState extends State<PlaySetupScreen> {
   late String mode = widget.initialMode;

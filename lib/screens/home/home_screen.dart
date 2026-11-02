@@ -145,7 +145,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               onTap: () => push(const OnlineHubScreen()),
             )),
-            r(BannerCard(image: 'assets/images/banner_ai.jpg', title: 'vs Stockfish AI', subtitle: 'Four levels, works offline', onTap: () => widget.goTab(1))),
+            r(BannerCard(image: 'assets/images/banner_ai.jpg', title: 'vs Dark Chess AI', subtitle: 'Four levels, works offline', onTap: () => widget.goTab(1))),
             r(const SectionTitle('Daily puzzle')),
             r(Pressable(
               onTap: () => push(PuzzleScreen(puzzle: daily)),

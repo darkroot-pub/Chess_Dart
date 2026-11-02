@@ -15,7 +15,7 @@ String fmtEval(int cp) {
   return '${cp > 0 ? '+' : ''}${(cp / 100).toStringAsFixed(1)}';
 }
 
-/// Chess.com-style game review: classifies every move (Brilliant ... Blunder) using Stockfish.
+/// Chess.com-style game review: classifies every move (Brilliant ... Blunder) using Dark Chess AI.
 class ReviewScreen extends StatefulWidget {
   final GameRecord record;
   const ReviewScreen({super.key, required this.record});
@@ -92,7 +92,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
                     const Icon(Icons.analytics_outlined, size: 54, color: C.primary),
                     const SizedBox(height: 14),
-                    const Text('Stockfish is reviewing your game…', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                    const Text('Dark Chess AI is reviewing your game…', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
                     const SizedBox(height: 14),
                     LinearProgressIndicator(value: progress, minHeight: 8, borderRadius: BorderRadius.circular(8)),
                     const SizedBox(height: 8),
@@ -104,7 +104,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
                 ? EmptyState(
                     icon: Icons.memory,
                     title: 'Analysis unavailable',
-                    message: widget.record.ucis.isEmpty ? 'This game has no moves to analyse.' : 'The Stockfish engine could not start on this device.',
+                    message: widget.record.ucis.isEmpty ? 'This game has no moves to analyse.' : 'The Dark Chess AI engine could not start on this device.',
                     action: widget.record.ucis.isEmpty ? null : ElevatedButton(onPressed: () => _run(250), child: const Text('Try again')),
                   )
                 : _body(an!, s, app),

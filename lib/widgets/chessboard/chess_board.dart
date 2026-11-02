@@ -11,8 +11,9 @@ class PieceImage extends StatelessWidget {
   const PieceImage(this.piece, this.set, this.size, {super.key});
   @override
   Widget build(BuildContext context) => set == 'lowpoly3d'
-      // rendered from the 3D low-poly model (PNG, tall & narrow): sit on the square's baseline
-      ? Image.asset('assets/pieces/lowpoly3d/${pieceKey(piece)}.png', width: size, height: size, fit: BoxFit.contain, alignment: Alignment.bottomCenter, filterQuality: FilterQuality.medium, gaplessPlayback: true)
+      // rendered from the 3D low-poly model (PNG, tall & narrow): sit on the square's baseline.
+      // cacheWidth decodes the 512px source at on-screen size: far less memory and no decode jank.
+      ? Image.asset('assets/pieces/lowpoly3d/${pieceKey(piece)}.png', width: size, height: size, cacheWidth: (size * MediaQuery.devicePixelRatioOf(context)).ceil().clamp(32, 512), fit: BoxFit.contain, alignment: Alignment.bottomCenter, filterQuality: FilterQuality.medium, gaplessPlayback: true)
       : SvgPicture.asset('assets/pieces/$set/${pieceKey(piece)}.svg', width: size, height: size);
 }
 

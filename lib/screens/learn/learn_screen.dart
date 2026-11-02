@@ -4,6 +4,7 @@ import '../../core/theme/app_theme.dart';
 import '../../providers/app_state.dart';
 import '../../services/chess_service/chess_game.dart';
 import '../../widgets/cards/common.dart';
+import '../../widgets/cards/guardian_widgets.dart';
 import '../../widgets/chessboard/chess_board.dart';
 
 class LStep {
@@ -126,6 +127,7 @@ class LessonScreen extends StatefulWidget {
 
 class _LessonScreenState extends State<LessonScreen> {
   int i = 0;
+  static const _tips = ['Study the board first, then read the text.', 'Look at the highlighted squares and arrows.', 'Try to picture it before you move on.'];
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
@@ -142,12 +144,16 @@ class _LessonScreenState extends State<LessonScreen> {
       appBar: AppBar(title: Text(widget.lesson.title)),
       body: SafeArea(
         child: ListView(padding: const EdgeInsets.all(16), children: [
+          ClipRRect(borderRadius: BorderRadius.circular(8), child: LinearProgressIndicator(value: (i + 1) / n, minHeight: 6, backgroundColor: C.softBlue)),
+          const SizedBox(height: 12),
           MiniBoard(st.fen, pieceSet: app.settings.pieceSet, theme: app.boardTheme, highlight: hl, arrow: arrow),
           const SizedBox(height: 16),
-          Text('LStep ${i + 1} of $n', style: const TextStyle(color: C.text2, fontSize: 12.5)),
+          Text('Step ${i + 1} of $n', style: const TextStyle(color: C.text2, fontSize: 12.5)),
           const SizedBox(height: 6),
           Text(st.text, style: const TextStyle(fontSize: 16, height: 1.45)),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
+          if (app.settings.guardianPuzzles) GuardianTalk(text: i == n - 1 ? 'Great work! Try the puzzles to practise this.' : _tips[i % _tips.length], seq: i),
+          const SizedBox(height: 4),
           Row(children: [
             if (i > 0) Expanded(child: OutlinedButton(onPressed: () => setState(() => i--), child: const Text('Back'))),
             if (i > 0) const SizedBox(width: 10),
