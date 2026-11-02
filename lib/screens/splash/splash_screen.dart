@@ -6,7 +6,6 @@ import '../../providers/app_state.dart';
 import '../../services/chess_service/chess_game.dart';
 import '../../services/multiplayer_service/supabase_service.dart';
 import '../../services/stockfish_service/engine_service.dart';
-import '../../widgets/chessboard/chess_board.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -58,14 +57,10 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                 opacity: CurvedAnimation(parent: ac, curve: Curves.easeOut),
                 child: Column(children: [
                   Container(
-                    width: 120,
-                    height: 120,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(30),
-                      gradient: const LinearGradient(colors: [C.primary, C.secondary], begin: Alignment.topLeft, end: Alignment.bottomRight),
-                      boxShadow: const [BoxShadow(color: Color(0x442563EB), blurRadius: 24, offset: Offset(0, 10))],
-                    ),
-                    child: Center(child: PieceImage(makePiece(kN, kWhite), 'cburnett', 92)),
+                    width: 124,
+                    height: 124,
+                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(28), boxShadow: const [BoxShadow(color: Color(0x55000000), blurRadius: 26, offset: Offset(0, 10))]),
+                    child: ClipRRect(borderRadius: BorderRadius.circular(28), child: Image.asset('assets/images/app_icon.png', fit: BoxFit.cover)),
                   ),
                   const SizedBox(height: 22),
                   RichText(text: const TextSpan(children: [TextSpan(text: 'Dark', style: TextStyle(color: C.text, fontSize: 40, fontWeight: FontWeight.w800)), TextSpan(text: 'Chess', style: TextStyle(color: C.primary, fontSize: 40, fontWeight: FontWeight.w800))])),
