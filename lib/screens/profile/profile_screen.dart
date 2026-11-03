@@ -6,6 +6,7 @@ import '../../services/multiplayer_service/supabase_service.dart';
 import '../../widgets/cards/common.dart';
 import '../../widgets/cards/ui_kit.dart';
 import '../leaderboard/leaderboard_screen.dart';
+import '../review/import_pgn_screen.dart';
 import '../review/review_screen.dart';
 import '../settings/settings_screen.dart';
 
@@ -143,6 +144,10 @@ class ProfileScreen extends StatelessWidget {
               ],
             )),
             r(const SectionTitle('Recent activity')),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: OutlinedButton.icon(onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ImportPgnScreen())), icon: const Icon(Icons.upload_file), label: const Text('Analyse your own PGN')),
+            ),
             if (app.history.isEmpty) const Padding(padding: EdgeInsets.all(12), child: Text('No games yet. Play your first game!', style: TextStyle(color: C.text2))),
             for (final g in app.history.take(100))
               Padding(
@@ -161,8 +166,8 @@ class ProfileScreen extends StatelessWidget {
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(g.mode == 'local' ? (g.result == '1-0' ? 'White won' : (g.result == '0-1' ? 'Black won' : 'Draw')) + ' · Pass & Play' : '${g.outcome == 1 ? 'Won' : (g.outcome == 0 ? 'Draw' : 'Lost')} vs ${g.opponent}', style: const TextStyle(fontWeight: FontWeight.w800)),
-                          Text('${g.mode == 'online' ? 'Online · ' : (g.mode == 'ai' ? 'Dark Chess AI · ' : '')}${g.reason} · ${g.date.substring(0, 10)}', style: const TextStyle(color: C.text2, fontSize: 12)),
+                          Text((g.mode == 'local' || g.mode == 'import') ? (g.result == '1-0' ? 'White won' : (g.result == '0-1' ? 'Black won' : (g.result == '1/2-1/2' ? 'Draw' : 'Game'))) + (g.mode == 'import' ? ' · ${g.white} vs ${g.black}' : ' · Pass & Play') : '${g.outcome == 1 ? 'Won' : (g.outcome == 0 ? 'Draw' : 'Lost')} vs ${g.opponent}', style: const TextStyle(fontWeight: FontWeight.w800)),
+                          Text('${g.mode == 'import' ? 'Imported · ' : g.mode == 'online' ? 'Online · ' : (g.mode == 'ai' ? 'Dark Chess AI · ' : '')}${g.reason} · ${g.date.substring(0, 10)}', style: const TextStyle(color: C.text2, fontSize: 12)),
                         ]),
                       ),
                       if (g.mode == 'ai' || (g.mode == 'online' && g.ratingDelta != 0)) Text('${g.ratingDelta >= 0 ? '+' : ''}${g.ratingDelta}', style: TextStyle(fontWeight: FontWeight.w900, color: g.ratingDelta >= 0 ? C.success : C.error)),
