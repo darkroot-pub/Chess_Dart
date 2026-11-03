@@ -28,12 +28,15 @@ class _ReviewScreenState extends State<ReviewScreen> {
   double progress = 0;
   bool failed = false, running = false, cancelled = false, flipped = false;
   int ply = 0;
+  MoveClass? filter; // tapped quality row: Prev/Next jump between these moves
+  bool showBest = false; // always draw the engine's best move
+  bool deep = false;
 
   @override
   void initState() {
     super.initState();
     flipped = widget.record.userColor == kBlack;
-    _run(250);
+    _run();
   }
 
   @override
@@ -43,7 +46,8 @@ class _ReviewScreenState extends State<ReviewScreen> {
     super.dispose();
   }
 
-  Future<void> _run(int ms) async {
+  Future<void> _run({bool deepRun = false}) async {
+    deep = deepRun;
     setState(() {
       running = true;
       failed = false;
@@ -52,7 +56,8 @@ class _ReviewScreenState extends State<ReviewScreen> {
     final r = await AnalysisService.analyse(
       widget.record.startFen,
       widget.record.ucis,
-      movetimeMs: ms,
+      movetimeMs: deepRun ? 9000 : 3000,
+      depth: deepRun ? 18 : 14,
       onProgress: (p) {
         if (mounted) setState(() => progress = p);
       },
@@ -105,7 +110,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
                     icon: Icons.memory,
                     title: 'Analysis unavailable',
                     message: widget.record.ucis.isEmpty ? 'This game has no moves to analyse.' : 'The analysis could not be completed (the engine did not answer, or the game record is invalid). Nothing was classified. You can try again.',
-                    action: widget.record.ucis.isEmpty ? null : ElevatedButton(onPressed: () => _run(250), child: const Text('Try again')),
+                    action: widget.record.ucis.isEmpty ? null : ElevatedButton(onPressed: () => _run(), child: const Text('Try again')),
                   )
                 : _body(an!, s, app),
       ),
@@ -121,7 +126,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
       lt = sqFromName(cur.uci.substring(2, 4));
     }
     List<int>? arrow;
-    if (cur != null && cur.bestUci != null && cur.bestUci != cur.uci && cur.winLoss >= 2) {
+    if (cur != null && cur.bestUci != null && cur.bestUci != cur.uci && (showBest || cur.winLoss >= 2)) {
       arrow = [sqFromName(cur.bestUci!.substring(0, 2)), sqFromName(cur.bestUci!.substring(2, 4))];
     }
     final wPct = winPct(a.evals[ply]) / 100;
@@ -179,6 +184,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
                 ),
               ]),
       ),
+      _keyMoments(a),
       Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
         IconButton.filledTonal(onPressed: ply > 0 ? () => setState(() => ply = 0) : null, icon: const Icon(Icons.first_page)),
         IconButton.filledTonal(onPressed: ply > 0 ? () => setState(() => ply--) : null, icon: const Icon(Icons.chevron_left)),
@@ -203,15 +209,21 @@ class _ReviewScreenState extends State<ReviewScreen> {
         child: Column(children: [
           const Row(children: [Expanded(child: Text('Move quality', style: TextStyle(fontWeight: FontWeight.w800))), SizedBox(width: 50, child: Text('White', textAlign: TextAlign.center, style: TextStyle(color: C.text2, fontSize: 12))), SizedBox(width: 50, child: Text('Black', textAlign: TextAlign.center, style: TextStyle(color: C.text2, fontSize: 12)))]),
           for (final c in MoveClass.values)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Row(children: [
-                Container(width: 22, height: 22, alignment: Alignment.center, decoration: BoxDecoration(color: c.color, shape: BoxShape.circle), child: Text(c.symbol, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900))),
-                const SizedBox(width: 10),
-                Expanded(child: Text(c.label, style: TextStyle(color: c.color, fontWeight: FontWeight.w700))),
-                SizedBox(width: 50, child: Text('${a.count(kWhite, c)}', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w700))),
-                SizedBox(width: 50, child: Text('${a.count(kBlack, c)}', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w700))),
-              ]),
+            InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: (a.count(kWhite, c) + a.count(kBlack, c)) == 0 ? null : () => _jumpClass(a, c),
+              child: Container(
+                margin: const EdgeInsets.only(top: 4),
+                padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+                decoration: BoxDecoration(color: filter == c ? c.color.withOpacity(0.14) : null, borderRadius: BorderRadius.circular(8)),
+                child: Row(children: [
+                  Container(width: 22, height: 22, alignment: Alignment.center, decoration: BoxDecoration(color: c.color, shape: BoxShape.circle), child: Text(c.symbol, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900))),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text(c.label, style: TextStyle(color: c.color, fontWeight: FontWeight.w700))),
+                  SizedBox(width: 50, child: Text('${a.count(kWhite, c)}', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w700))),
+                  SizedBox(width: 50, child: Text('${a.count(kBlack, c)}', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w700))),
+                ]),
+              ),
             ),
         ]),
       ),
@@ -228,14 +240,94 @@ class _ReviewScreenState extends State<ReviewScreen> {
                   if (i % 2 == 0) Text('${i ~/ 2 + 1}. ', style: TextStyle(color: ply == i + 1 ? Colors.white70 : C.text2, fontSize: 12)),
                   Text(a.plies[i].san, style: TextStyle(fontWeight: FontWeight.w700, color: ply == i + 1 ? Colors.white : C.text)),
                   const SizedBox(width: 4),
-                  Container(width: 8, height: 8, decoration: BoxDecoration(color: a.plies[i].cls.color, shape: BoxShape.circle)),
+                  _badge(a.plies[i].cls),
                 ]),
               ),
             ),
         ]),
       ),
-      OutlinedButton.icon(onPressed: () => _run(900), icon: const Icon(Icons.speed), label: const Text('Re-analyse deeper (slower)')),
+      OutlinedButton.icon(onPressed: deep ? null : () => _run(deepRun: true), icon: const Icon(Icons.speed), label: Text(deep ? 'Deep analysis (depth 18) done' : 'Re-analyse deeper (depth 18, slower)')),
     ]);
+  }
+
+  Widget _badge(MoveClass c) {
+    final quiet = c == MoveClass.best || c == MoveClass.excellent || c == MoveClass.good || c == MoveClass.book;
+    if (quiet) return Container(width: 8, height: 8, decoration: BoxDecoration(color: c.color, shape: BoxShape.circle));
+    return Container(
+      constraints: const BoxConstraints(minWidth: 18),
+      height: 18,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(color: c.color, borderRadius: BorderRadius.circular(9)),
+      child: Text(c.symbol, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900)),
+    );
+  }
+
+  /// Moves of [c] in game order (both sides).
+  List<int> _plysOf(GameAnalysis a, MoveClass c) => [for (int i = 0; i < a.plies.length; i++) if (a.plies[i].cls == c) i + 1];
+
+  /// Tapping a quality row selects it and jumps to the next such move after the current one (wrapping around).
+  void _jumpClass(GameAnalysis a, MoveClass c) {
+    final xs = _plysOf(a, c);
+    if (xs.isEmpty) return;
+    setState(() {
+      filter = c;
+      ply = xs.firstWhere((p) => p > ply, orElse: () => xs.first);
+    });
+  }
+
+  void _step(GameAnalysis a, int dir) {
+    final c = filter;
+    if (c == null) return;
+    final xs = _plysOf(a, c);
+    if (xs.isEmpty) return;
+    setState(() {
+      ply = dir > 0 ? xs.firstWhere((p) => p > ply, orElse: () => xs.first) : xs.lastWhere((p) => p < ply, orElse: () => xs.last);
+    });
+  }
+
+  /// Chess.com-style shortcuts: one chip per important class (Brilliant, Great, Miss, Mistake, Blunder) with its count.
+  Widget _keyMoments(GameAnalysis a) {
+    const keys = [MoveClass.brilliant, MoveClass.great, MoveClass.blunder, MoveClass.mistake, MoveClass.miss, MoveClass.inaccuracy];
+    final present = keys.where((c) => _plysOf(a, c).isNotEmpty).toList();
+    if (present.isEmpty) return const SizedBox.shrink();
+    final c = filter;
+    final xs = c == null ? const <int>[] : _plysOf(a, c);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Column(children: [
+        SizedBox(
+          height: 38,
+          child: ListView(scrollDirection: Axis.horizontal, children: [
+            for (final k in present)
+              Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: ChoiceChip(
+                  selected: filter == k,
+                  onSelected: (_) => _jumpClass(a, k),
+                  avatar: CircleAvatar(backgroundColor: k.color, child: Text(k.symbol, style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w900))),
+                  label: Text('${k.label} ${_plysOf(a, k).length}'),
+                ),
+              ),
+          ]),
+        ),
+        if (c != null && xs.isNotEmpty)
+          Row(children: [
+            IconButton(onPressed: () => _step(a, -1), icon: const Icon(Icons.arrow_back_ios_new, size: 16)),
+            Expanded(child: Text('${c.label}: ${xs.contains(ply) ? xs.indexOf(ply) + 1 : '–'} of ${xs.length}', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w700, color: c.color))),
+            IconButton(onPressed: () => _step(a, 1), icon: const Icon(Icons.arrow_forward_ios, size: 16)),
+            IconButton(tooltip: 'Clear', onPressed: () => setState(() => filter = null), icon: const Icon(Icons.close, size: 16)),
+          ]),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: () => setState(() => showBest = !showBest),
+            icon: Icon(showBest ? Icons.visibility : Icons.visibility_off_outlined, size: 18),
+            label: Text(showBest ? 'Hide best-move arrow' : 'Show best-move arrow'),
+          ),
+        ),
+      ]),
+    );
   }
 
   String _phrase(MoveClass c) => const {

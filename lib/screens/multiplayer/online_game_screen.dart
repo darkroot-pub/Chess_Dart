@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show RealtimeChannel;
 import '../../core/theme/app_theme.dart';
+import '../../models/models.dart';
 import '../../providers/app_state.dart';
 import '../../services/audio_service.dart';
 import '../../services/chess_service/chess_game.dart';
@@ -11,6 +12,8 @@ import '../../services/multiplayer_service/challenge_service.dart';
 import '../../services/multiplayer_service/supabase_service.dart';
 import '../../widgets/cards/common.dart';
 import '../../widgets/chessboard/chess_board.dart';
+import '../review/review_screen.dart';
+import '../settings/settings_screen.dart';
 
 /// Live online game. Every move is sent to the `game-action` edge function, which validates it
 /// with a real rules engine before updating the shared game row; clients only read via Realtime.
@@ -148,6 +151,32 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
         } catch (_) {}
       }
     }
+    if (mounted && g['status'] == 'finished') _saveToHistory(g);
+  }
+
+  GameRecord? _rec;
+
+  /// Every finished online game goes into the history (and the cloud copy), once, keyed by the game id.
+  void _saveToHistory(Map<String, dynamic> g) {
+    final u = moves;
+    final r = g['result'] as String?;
+    if (u.isEmpty || r == null || !names.containsKey(g['white_id']) || !names.containsKey(g['black_id'])) return;
+    final app = context.read<AppState>();
+    final wn = names[g['white_id']]!.split('|').first, bn = names[g['black_id']]!.split('|').first;
+    final chess = ChessGame.fromFen(ChessGame.startFen);
+    for (final x in u) {
+      final mv = chess.findUci(x);
+      if (mv == null) break;
+      chess.play(mv);
+    }
+    _rec = GameRecord(
+      id: '${g['id'] ?? widget.gameId}',
+      date: '${g['updated_at'] ?? DateTime.now().toIso8601String()}',
+      white: wn, black: bn, result: r, reason: '${g['reason'] ?? ''}', mode: 'online',
+      pgn: chess.pgn(white: wn, black: bn, resultStr: r, event: 'DarkChess online game'),
+      startFen: ChessGame.startFen, userColor: myColor, ratingDelta: 0, ucis: u,
+    );
+    app.recordOnlineGame(_rec!);
   }
 
   void _moveSound() {
@@ -156,6 +185,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
     final cap = count < _pieces;
     _pieces = count;
     AudioService.instance.play(g.inCheck ? 'check' : (cap ? 'capture' : 'move'));
+    AudioService.instance.haptic();
   }
 
   void _scrollMoves() {
@@ -174,6 +204,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
       if (before != null && now != null && mounted) {
         final d = now - before;
         setState(() => _ratingText = 'Rating $before → $now (${d >= 0 ? '+' : ''}$d)');
+        context.read<AppState>().setOnlineRatingDelta('${game?['id'] ?? widget.gameId}', d);
         names[uid] = '${names[uid]?.split('|').first}|$now';
       }
     } catch (_) {}
@@ -382,6 +413,10 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
           Row(children: [
             Expanded(child: OutlinedButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Back'))),
             const SizedBox(width: 10),
+            if (_rec != null) ...[
+              Expanded(child: OutlinedButton(onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ReviewScreen(record: _rec!))), child: const Text('Review'))),
+              const SizedBox(width: 10),
+            ],
             Expanded(child: ElevatedButton(style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(46)), onPressed: _rematch, child: const Text('Rematch'))),
           ]),
         ]),
@@ -424,6 +459,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
       appBar: AppBar(
         title: Text(waiting ? 'Waiting for opponent' : 'Online Game'),
         actions: [
+          IconButton(icon: const Icon(Icons.settings_outlined), onPressed: () => showSheet(context, const SettingsPanel())),
           Padding(padding: const EdgeInsets.only(right: 12), child: Icon(connected ? Icons.wifi : Icons.wifi_off, color: connected ? C.success : C.error, size: 20)),
         ],
       ),

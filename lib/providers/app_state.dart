@@ -315,6 +315,30 @@ class AppState extends ChangeNotifier {
     return rec;
   }
 
+  /// Stores a finished ONLINE game in the history (and so in the cloud copy). The server already applied rating and
+  /// result, so no statistics are touched here. Safe to call repeatedly: a game id is stored once.
+  void recordOnlineGame(GameRecord rec) {
+    if (history.any((g) => g.id == rec.id)) return;
+    history.insert(0, rec);
+    history.sort((a, b) => b.date.compareTo(a.date));
+    if (history.length > 200) history = history.sublist(0, 200);
+    storage.saveHistory(history); _pushSoon();
+    notifyListeners();
+  }
+
+  /// Adds the rating change of an online game once it is known.
+  void setOnlineRatingDelta(String id, int delta) {
+    final i = history.indexWhere((g) => g.id == id);
+    if (i < 0 || history[i].ratingDelta == delta) return;
+    final o = history[i];
+    history[i] = GameRecord(
+      id: o.id, date: o.date, white: o.white, black: o.black, result: o.result, reason: o.reason, mode: o.mode,
+      pgn: o.pgn, startFen: o.startFen, userColor: o.userColor, ratingDelta: delta, ucis: o.ucis,
+    );
+    storage.saveHistory(history); _pushSoon();
+    notifyListeners();
+  }
+
   void _achieve(String id) => stats.achievements.add(id);
 
   void unlock(String id) {

@@ -102,7 +102,8 @@ class AnalysisService {
   static Future<GameAnalysis?> analyse(
     String startFen,
     List<String> ucis, {
-    int movetimeMs = 250,
+    int movetimeMs = 3000,
+    int depth = 14,
     void Function(double progress)? onProgress,
     bool Function()? cancelled,
   }) async {
@@ -127,6 +128,7 @@ class AnalysisService {
     final evals = <int>[];
     final bestUcis = <String?>[];
     final seconds = <int?>[];
+    final secondUcis = <String?>[];
     final legalCounts = <int>[];
     for (int i = 0; i < fens.length; i++) {
       if (cancelled != null && cancelled()) return null;
@@ -137,17 +139,19 @@ class AnalysisService {
         evals.add(pos.inCheck ? (pos.turn == kWhite ? -10000 : 10000) : 0);
         bestUcis.add(null);
         seconds.add(null);
+        secondUcis.add(null);
       } else {
-        var lines = await EngineService.instance.analyse(fens[i], movetimeMs: movetimeMs, multiPv: 2);
+        var lines = await EngineService.instance.analyse(fens[i], movetimeMs: movetimeMs, multiPv: 2, depth: depth);
         if (lines.isEmpty && !(cancelled != null && cancelled())) {
           // engine crashed / hung: restart it once and retry this position before giving up
           await EngineService.instance.restart();
-          lines = await EngineService.instance.analyse(fens[i], movetimeMs: movetimeMs, multiPv: 2);
+          lines = await EngineService.instance.analyse(fens[i], movetimeMs: movetimeMs, multiPv: 2, depth: depth);
         }
         if (lines.isEmpty) return null; // never classify moves from missing or incomplete analysis
         evals.add(lines.first.whiteCp);
         bestUcis.add(lines.first.best);
         seconds.add(lines.length > 1 ? lines[1].whiteCp : null);
+        secondUcis.add(lines.length > 1 ? lines[1].best : null);
       }
       onProgress?.call((i + 1) / fens.length);
     }
@@ -159,9 +163,13 @@ class AnalysisService {
       final mover = pieceColor(moves[i].piece);
       int pov(int cp) => mover == kWhite ? cp : -cp;
       final wBefore = winPct(pov(evals[i]));
-      final wAfter = winPct(pov(evals[i + 1]));
-      final loss = max(0.0, wBefore - wAfter);
       final isBest = bestUcis[i] != null && bestUcis[i] == moves[i].uci;
+      // If the played move is the engine's 2nd choice, its value comes from the SAME search as the best move
+      // (apples to apples); otherwise from the search of the resulting position.
+      final playedCp = (!isBest && secondUcis[i] == moves[i].uci && seconds[i] != null) ? seconds[i]! : evals[i + 1];
+      final wAfter = winPct(pov(playedCp));
+      // the engine's own best move never loses anything, whatever the next (independent) search says
+      final loss = isBest ? 0.0 : max(0.0, wBefore - wAfter);
       MoveClass cls;
       if (legalCounts[i] == 1) {
         cls = MoveClass.best;

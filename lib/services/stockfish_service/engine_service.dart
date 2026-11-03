@@ -117,7 +117,7 @@ class EngineService {
   }
 
   /// Full-strength analysis; returns up to [multiPv] lines ordered best first.
-  Future<List<EngineLine>> analyse(String fen, {int movetimeMs = 300, int multiPv = 1}) async {
+  Future<List<EngineLine>> analyse(String fen, {int movetimeMs = 300, int multiPv = 1, int? depth}) async {
     if (!await init() || !validFen(fen)) return [];
     return _enqueue(() async {
       await _drain();
@@ -154,7 +154,8 @@ class EngineService {
           if (!done.isCompleted) done.complete();
         }
       };
-      _send('go movetime $movetimeMs');
+      // with a depth the search stops at whichever comes first: that depth or the time cap
+      _send(depth != null ? 'go depth $depth movetime $movetimeMs' : 'go movetime $movetimeMs');
       var timedOut = false;
       await done.future.timeout(Duration(milliseconds: movetimeMs + 10000), onTimeout: () {
         timedOut = true;

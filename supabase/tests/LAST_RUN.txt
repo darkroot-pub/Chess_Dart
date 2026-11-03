@@ -1,0 +1,8 @@
+ 130 checks passed
+== concurrency: 8 identical simultaneous moves -> exactly one wins
+successful requests: 1
+== concurrency: both players resign at the same instant -> finished once, ratings applied once
+ratings applied once
+== concurrency: simultaneous quick_match calls always pair up (10 rounds)
+all 10 rounds paired
+ALL SQL + CONCURRENCY TESTS PASSED
