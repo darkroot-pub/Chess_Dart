@@ -48,6 +48,9 @@ class AppState extends ChangeNotifier {
     stats = storage.loadStats();
     history = storage.loadHistory();
     saved = storage.loadSavedGame();
+    _pendingGames = storage.loadPending('pendingGames');
+    _pendingPuzzles = storage.loadPending('pendingPuzzles');
+    _settingsTs = storage.settingsTs;
     _applyAudio();
     ready = true;
     notifyListeners();
@@ -63,6 +66,8 @@ class AppState extends ChangeNotifier {
   void updateSettings(void Function(AppSettings s) f) {
     f(settings);
     _applyAudio();
+    _settingsTs = DateTime.now().millisecondsSinceEpoch;
+    storage.setSettingsTs(_settingsTs);
     storage.saveSettings(settings); _pushSoon();
     notifyListeners();
   }
@@ -118,7 +123,8 @@ class AppState extends ChangeNotifier {
   }
 
   void setUsername(String n) {
-    stats.username = n.trim().isEmpty ? 'Player' : n.trim();
+    final clean = n.trim().replaceAll(RegExp(r'[\u0000-\u001F\u007F\u200B-\u200F\u202A-\u202E]'), '');
+    stats.username = clean.isEmpty ? 'Player' : (clean.length > 20 ? clean.substring(0, 20) : clean);
     storage.saveStats(stats); _pushSoon();
     notifyListeners();
     final sb = SupabaseService.instance;
@@ -128,79 +134,126 @@ class AppState extends ChangeNotifier {
   }
 
   // ---------------------------------------------------------------- cloud progress
-  bool _synced = false;
+  // Sync model (multi-device safe): the server keeps the authoritative counters. This device only sends
+  //   * events  (finished rated games / solved puzzles, each with a unique id the server counts exactly once)
+  //   * sets    (achievements: union)
+  //   * latest settings (newest timestamp wins) and recent game records (merged by id)
+  // and replaces its local stats with what the server returns. Unsent events survive restarts and offline periods.
+  bool _synced = false, _syncing = false, _again = false;
   Timer? _pushTimer;
   String syncStatus = ''; // shown in the profile screen
+  List<Map<String, dynamic>> _pendingGames = [], _pendingPuzzles = [];
+  int _settingsTs = 0;
+
+  static String _newId() => '${DateTime.now().microsecondsSinceEpoch}-${Random().nextInt(1 << 30).toRadixString(36)}';
+
+  void _queue(List<Map<String, dynamic>> q, String key, Map<String, dynamic> e) {
+    q.add(e);
+    if (q.length > 500) q.removeRange(0, q.length - 500);
+    storage.savePending(key, q);
+  }
 
   void _pushSoon() {
     final sb = SupabaseService.instance;
     if (!_synced || !sb.available || !sb.signedIn) return;
     _pushTimer?.cancel();
-    _pushTimer = Timer(const Duration(seconds: 2), pushNow);
+    _pushTimer = Timer(const Duration(seconds: 2), () { pushNow(); });
   }
 
   Future<void> pushNow() async {
     final sb = SupabaseService.instance;
     if (!sb.available || !sb.signedIn) return;
+    if (_syncing) { _again = true; return; } // one request at a time; changes made meanwhile trigger another round
+    _syncing = true;
     try {
-      await sb.saveProgress(stats.toJson(), settings.toJson(), history.take(100).map((e) => e.toJson()).toList());
+      final first = !storage.syncV2;
+      // First sync of this install: the old local stats go up as a one-time baseline, which already contains
+      // every game/puzzle recorded so far, so those must not be sent again as events.
+      if (first) { _pendingGames = []; _pendingPuzzles = []; }
+      final games = List<Map<String, dynamic>>.of(_pendingGames);
+      final puzzles = List<Map<String, dynamic>>.of(_pendingPuzzles);
+      final r = await sb.syncProgress(
+        baseline: first ? stats.toJson() : null,
+        games: games,
+        puzzles: puzzles,
+        ach: stats.achievements.toList(),
+        settings: settings.toJson(),
+        settingsTs: _settingsTs,
+        history: history.take(50).map((e) => e.toJson()).toList(),
+      );
+      // acknowledged: forget exactly the events that were sent
+      final gi = games.map((e) => e['id']).toSet(), pi = puzzles.map((e) => e['id']).toSet();
+      _pendingGames.removeWhere((e) => gi.contains(e['id']));
+      _pendingPuzzles.removeWhere((e) => pi.contains(e['id']));
+      await storage.savePending('pendingGames', _pendingGames);
+      await storage.savePending('pendingPuzzles', _pendingPuzzles);
+      await storage.setSyncV2();
+      _applyServer(r);
+      _synced = true;
       syncStatus = 'Saved to cloud';
-    } catch (e) {
-      syncStatus = 'Cloud save failed: $e';
+    } catch (_) {
+      syncStatus = 'Cloud sync pending. It will retry when you are online.';
+    } finally {
+      _syncing = false;
     }
     notifyListeners();
+    if (_again) { _again = false; _pushSoon(); }
   }
 
-  /// Downloads the cloud copy and merges it with this device, then uploads the result.
-  Future<void> _pullAndMerge() async {
-    final sb = SupabaseService.instance;
-    try {
-      final row = await sb.fetchProgress();
-      if (row != null) {
-        final rs = PlayerStats.fromJson(Map<String, dynamic>.from(row['stats'] ?? {}));
-        // keep the DB username; counters come from whichever side has played more
-        final src = rs.played > stats.played ? rs : stats;
-        final merged = PlayerStats()
-          ..username = stats.username
-          ..rating = src.rating
-          ..played = max(rs.played, stats.played)
-          ..wins = max(rs.wins, stats.wins)
-          ..losses = max(rs.losses, stats.losses)
-          ..draws = max(rs.draws, stats.draws)
-          ..puzzlePoints = max(rs.puzzlePoints, stats.puzzlePoints)
-          ..solved = {...rs.solved, ...stats.solved}
-          ..achievements = {...rs.achievements, ...stats.achievements};
-        stats = merged;
-        final rset = row['settings'];
-        if (rset is Map && rset.isNotEmpty) {
-          settings = AppSettings.fromJson(Map<String, dynamic>.from(rset));
-          storage.saveSettings(settings);
-          _applyAudio();
-        }
-        final byId = <String, GameRecord>{for (final g in history) g.id: g};
-        for (final e in (row['history'] as List? ?? [])) {
-          try {
-            final g = GameRecord.fromJson(Map<String, dynamic>.from(e));
-            byId.putIfAbsent(g.id, () => g);
-          } catch (_) {}
-        }
-        history = byId.values.toList()..sort((a, b) => b.date.compareTo(a.date));
-        if (history.length > 200) history = history.sublist(0, 200);
-        storage.saveHistory(history);
-      }
-      storage.saveStats(stats);
-      _synced = true;
-      notifyListeners();
-      await pushNow();
-    } catch (e) {
-      syncStatus = 'Cloud sync failed: $e';
-      notifyListeners();
+  /// Adopts the server's authoritative copy, then re-applies events that are still waiting to be sent.
+  void _applyServer(Map<String, dynamic> r) {
+    final rs = PlayerStats.fromJson(Map<String, dynamic>.from(r['stats'] ?? {}));
+    rs.username = stats.username; // the name comes from the profiles table
+    rs.achievements = {...rs.achievements, ...stats.achievements};
+    for (final e in _pendingGames) {
+      final o = e['o'] as int;
+      rs.played++;
+      if (o == 1) rs.wins++; else if (o == 0) rs.draws++; else rs.losses++;
+      rs.rating = max(100, rs.rating + (e['d'] as int));
     }
+    for (final e in _pendingPuzzles) {
+      if (rs.solved.add(e['id'] as String)) rs.puzzlePoints += e['p'] as int;
+    }
+    stats = rs;
+    storage.saveStats(stats);
+
+    final sts = (r['settings_ts'] as num?)?.toInt() ?? 0;
+    final rset = r['settings'];
+    if (sts > _settingsTs && rset is Map && rset.isNotEmpty) {
+      settings = AppSettings.fromJson(Map<String, dynamic>.from(rset));
+      _settingsTs = sts;
+      storage.saveSettings(settings);
+      storage.setSettingsTs(sts);
+      _applyAudio();
+    }
+
+    final byId = <String, GameRecord>{for (final g in history) g.id: g};
+    for (final e in (r['history'] as List? ?? [])) {
+      try {
+        final g = GameRecord.fromJson(Map<String, dynamic>.from(e));
+        byId.putIfAbsent(g.id, () => g);
+      } catch (_) {}
+    }
+    history = byId.values.toList()..sort((a, b) => b.date.compareTo(a.date));
+    if (history.length > 200) history = history.sublist(0, 200);
+    storage.saveHistory(history);
+  }
+
+  /// First call after sign-in / app start: exchanges data with the server.
+  Future<void> _pullAndMerge() async {
+    _synced = true;
+    await pushNow();
   }
 
   void _resetLocal() {
     _synced = false;
     _pushTimer?.cancel();
+    _pendingGames = [];
+    _pendingPuzzles = [];
+    _settingsTs = 0;
+    storage.savePending('pendingGames', _pendingGames);
+    storage.savePending('pendingPuzzles', _pendingPuzzles);
+    storage.setSettingsTs(0);
     stats = PlayerStats();
     history = [];
     settings = AppSettings();
@@ -227,6 +280,7 @@ class AppState extends ChangeNotifier {
     required List<String> ucis, int? opponentRating,
   }) {
     int delta = 0;
+    final gid = _newId();
     final opp = opponentRating;
     final outcome = result == '1/2-1/2' ? 0 : (((result == '1-0') == (userColor == 0)) ? 1 : -1);
     if (opp != null) {
@@ -246,10 +300,11 @@ class AppState extends ChangeNotifier {
         if (opp >= 2600) _achieve('win_expert');
       }
       if (stats.rating >= 1400) _achieve('rating_1400');
+      _queue(_pendingGames, 'pendingGames', {'id': gid, 'o': outcome, 'd': delta});
       storage.saveStats(stats); _pushSoon();
     }
     final rec = GameRecord(
-      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      id: gid,
       date: DateTime.now().toIso8601String(),
       white: white, black: black, result: result, reason: reason, mode: mode, pgn: pgn,
       startFen: startFen, userColor: userColor, ratingDelta: delta, ucis: ucis,
@@ -272,6 +327,7 @@ class AppState extends ChangeNotifier {
   void solvePuzzle(String id, int points) {
     if (stats.solved.add(id)) {
       stats.puzzlePoints += points;
+      _queue(_pendingPuzzles, 'pendingPuzzles', {'id': id, 'p': points});
       if (stats.solved.length >= 5) _achieve('puzzles_5');
       if (stats.solved.length >= totalPuzzles) _achieve('puzzles_all');
       storage.saveStats(stats); _pushSoon();

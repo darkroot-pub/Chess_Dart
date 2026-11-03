@@ -158,7 +158,7 @@ class _GameViewState extends State<_GameView> {
             ? 'Paused'
             : c.thinking
                 ? 'Dark Chess AI is thinking…'
-                : (c.hintText ?? (g.inCheck ? 'Check!' : (c.humanTurn ? 'Your move' : '')));
+                : (c.premove != null ? 'Pre-move queued. Tap to cancel.' : (c.hintText ?? (g.inCheck ? 'Check!' : (c.humanTurn ? 'Your move' : ''))));
 
     return Scaffold(
       appBar: AppBar(
@@ -204,6 +204,7 @@ class _GameViewState extends State<_GameView> {
               onTap: c.onTap,
               onDrop: c.onDrop,
               arrow: c.hint,
+              premove: c.premove,
             ))),
             ),
             bar(botColor),

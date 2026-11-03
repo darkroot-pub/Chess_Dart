@@ -50,6 +50,24 @@ class StorageService {
     }
   }
 
+  /// Events (finished games / solved puzzles) not yet acknowledged by the server.
+  List<Map<String, dynamic>> loadPending(String key) {
+    try {
+      final s = _p.getString(key);
+      if (s == null) return [];
+      return (jsonDecode(s) as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> savePending(String key, List<Map<String, dynamic>> v) => _p.setString(key, jsonEncode(v));
+
+  bool get syncV2 => _p.getBool('syncV2') ?? false;
+  Future<void> setSyncV2() => _p.setBool('syncV2', true);
+  int get settingsTs => _p.getInt('settingsTs') ?? 0;
+  Future<void> setSettingsTs(int v) => _p.setInt('settingsTs', v);
+
   String get lastEmail => _p.getString('lastEmail') ?? '';
   Future<void> setLastEmail(String e) => _p.setString('lastEmail', e);
 

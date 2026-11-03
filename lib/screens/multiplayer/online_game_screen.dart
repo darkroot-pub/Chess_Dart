@@ -35,6 +35,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
   String? error, notice;
   int _serverN = -1; // number of moves the server has confirmed
   String? pending; // my move shown optimistically, not yet confirmed
+  List<int>? premove; // queued pre-move [from, to], played automatically when the opponent has moved
   bool _finishedSeen = false, _resultShown = false;
   String? _myRatingBefore, _ratingText;
   final _scroll = ScrollController();
@@ -119,7 +120,9 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
     }
     _serverN = n;
     if (grew) _moveSound();
-    if (selected != null && !myTurn) { selected = null; targets = {}; }
+    if (selected != null && !myTurn && !_canPremove) { selected = null; targets = {}; }
+    if (fin0(g)) premove = null;
+    if (grew) _tryPremove();
     _scrollMoves();
 
     final fin = g['status'] == 'finished';
@@ -241,12 +244,55 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
     }
     pending = null;
     if (mounted) setState(() => busy = false);
+    _tryPremove();
   }
 
   bool get myTurn => status == 'active' && cg.turn == myColor && pending == null && !busy;
 
+  bool fin0(Map<String, dynamic> g) => g['status'] == 'finished';
+
+  bool get _canPremove => context.read<AppState>().settings.premoves && status == 'active' && cg.turn != myColor;
+
+  void _premoveTap(int sq) {
+    if (!_canPremove) return;
+    final g = cg;
+    if (selected != null && targets.contains(sq)) {
+      _setPremove(selected!, sq);
+      return;
+    }
+    final p = g.board[sq];
+    if (p != 0 && pieceColor(p) == myColor) {
+      selected = sq;
+      targets = g.withTurn(myColor).legalMovesFrom(sq).map((m) => m.to).toSet();
+      premove = null;
+    } else {
+      selected = null;
+      targets = {};
+      premove = null;
+    }
+    setState(() {});
+  }
+
+  void _setPremove(int from, int to) {
+    if (!cg.withTurn(myColor).legalMovesFrom(from).any((m) => m.to == to)) {
+      setState(() { selected = null; targets = {}; });
+      return;
+    }
+    AudioService.instance.haptic();
+    setState(() { premove = [from, to]; selected = null; targets = {}; });
+  }
+
+  void _tryPremove() {
+    final pm = premove;
+    if (pm == null || !mounted || !myTurn) return;
+    premove = null;
+    final g = cg;
+    if (g.findMove(pm[0], pm[1]) == null) { setState(() {}); return; }
+    _move(g, pm[0], pm[1], quiet: true);
+  }
+
   void _tap(int sq) {
-    if (!myTurn) return;
+    if (!myTurn) { _premoveTap(sq); return; }
     final g = cg;
     if (selected != null && targets.contains(sq)) {
       _move(g, selected!, sq);
@@ -264,9 +310,9 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
     setState(() {});
   }
 
-  Future<void> _move(ChessGame g, int from, int to) async {
+  Future<void> _move(ChessGame g, int from, int to, {bool quiet = false}) async {
     int promo = kQ;
-    if (g.needsPromotion(from, to) && !context.read<AppState>().settings.autoQueen) {
+    if (!quiet && g.needsPromotion(from, to) && !context.read<AppState>().settings.autoQueen) {
       final set = context.read<AppState>().settings.pieceSet;
       final c = await showDialog<int>(
         context: context,
@@ -400,9 +446,13 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
                 lastFrom: lf,
                 lastTo: lt,
                 checkSq: g.inCheck ? g.kingSquare(g.turn) : null,
-                canDrag: (sq) => myTurn && g.board[sq] != 0 && pieceColor(g.board[sq]) == myColor,
+                premove: premove,
+                canDrag: (sq) => (myTurn || _canPremove) && g.board[sq] != 0 && pieceColor(g.board[sq]) == myColor,
                 onTap: _tap,
-                onDrop: (f, t) { if (myTurn && f != t && g.legalMovesFrom(f).any((m) => m.to == t)) _move(g, f, t); },
+                onDrop: (f, t) {
+                  if (f == t) return;
+                  if (myTurn) { if (g.legalMovesFrom(f).any((m) => m.to == t)) _move(g, f, t); } else if (_canPremove) { _setPremove(f, t); }
+                },
               ),
               if (waiting)
                 Positioned.fill(

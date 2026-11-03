@@ -18,7 +18,7 @@ class SupabaseService {
       available = true;
     } catch (e) {
       initError = '$e';
-      debugPrint('Supabase init failed: $e');
+      if (kDebugMode) debugPrint('Supabase init failed: $e');
     }
   }
 
@@ -126,8 +126,29 @@ class SupabaseService {
       Map<String, dynamic>.from(await client.rpc('quick_match', params: {'p_minutes': minutes, 'p_inc': inc}));
   Future<Map<String, dynamic>> createRoom(int minutes, int inc) async =>
       Map<String, dynamic>.from(await client.rpc('create_room', params: {'p_minutes': minutes, 'p_inc': inc}));
-  Future<Map<String, dynamic>> joinRoom(String code) async =>
-      Map<String, dynamic>.from(await client.rpc('join_room', params: {'p_code': code.trim().toUpperCase()}));
+  Future<Map<String, dynamic>> joinRoom(String code) async {
+    final r = await client.rpc('join_room', params: {'p_code': code.trim().toUpperCase()});
+    // the server answers NULL for unknown / expired / already started rooms (so that wrong guesses are counted)
+    if (r == null || r is! Map || r['id'] == null) throw 'Room not found, expired or already started.';
+    return Map<String, dynamic>.from(r);
+  }
+
+  /// Atomic, idempotent progress sync (see sync_progress in supabase/patch_4_security.sql).
+  Future<Map<String, dynamic>> syncProgress({
+    Map<String, dynamic>? baseline,
+    required List<Map<String, dynamic>> games,
+    required List<Map<String, dynamic>> puzzles,
+    required List<String> ach,
+    required Map<String, dynamic> settings,
+    required int settingsTs,
+    required List<Map<String, dynamic>> history,
+  }) async {
+    final r = await client.rpc('sync_progress', params: {
+      'p_baseline': baseline, 'p_games': games, 'p_puzzles': puzzles, 'p_ach': ach,
+      'p_settings': settings, 'p_settings_ts': settingsTs, 'p_history': history,
+    });
+    return Map<String, dynamic>.from(r as Map);
+  }
   Future<void> cancelGame(String id) async => await client.rpc('cancel_game', params: {'p_game': id});
 
   Future<Map<String, dynamic>?> fetchGame(String id) async => await client.from('games').select().eq('id', id).maybeSingle();

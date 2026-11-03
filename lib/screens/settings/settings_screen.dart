@@ -35,6 +35,7 @@ class SettingsPanel extends StatelessWidget {
       sw('Auto queen', s.autoQueen, (v) => s.autoQueen = v, Icons.workspace_premium),
       sw('Board coordinates', s.coords, (v) => s.coords = v, Icons.grid_on),
       sw('Piece move animation', s.animateMoves, (v) => s.animateMoves = v, Icons.animation),
+      sw('Pre-moves (move ahead of your turn)', s.premoves, (v) => s.premoves = v, Icons.fast_forward),
       sw('Highlight last move', s.highlightLast, (v) => s.highlightLast = v, Icons.highlight_alt),
       const Padding(padding: EdgeInsets.only(top: 10, bottom: 2), child: Text('Guardian (Kindred)', style: TextStyle(fontWeight: FontWeight.w800, color: C.primary))),
       sw('Comments in games vs AI', s.guardianChat, (v) => s.guardianChat = v, Icons.chat_bubble_outline),

@@ -112,9 +112,10 @@ class AnalysisService {
     final moves = <Move>[];
     final sans = <String>[];
     final beforeFens = <String>[];
+    if (!EngineService.validFen(startFen) || ucis.length > 600) return null; // bad input / unbounded work
     for (final u in ucis) {
       final m = g.findUci(u);
-      if (m == null) break;
+      if (m == null) return null; // an illegal move in the record: refuse instead of analysing a truncated game
       beforeFens.add(g.fen);
       sacs.add(isSacrifice(g, m));
       sans.add(g.play(m));
@@ -137,8 +138,13 @@ class AnalysisService {
         bestUcis.add(null);
         seconds.add(null);
       } else {
-        final lines = await EngineService.instance.analyse(fens[i], movetimeMs: movetimeMs, multiPv: 2);
-        if (lines.isEmpty) return null; // engine unavailable
+        var lines = await EngineService.instance.analyse(fens[i], movetimeMs: movetimeMs, multiPv: 2);
+        if (lines.isEmpty && !(cancelled != null && cancelled())) {
+          // engine crashed / hung: restart it once and retry this position before giving up
+          await EngineService.instance.restart();
+          lines = await EngineService.instance.analyse(fens[i], movetimeMs: movetimeMs, multiPv: 2);
+        }
+        if (lines.isEmpty) return null; // never classify moves from missing or incomplete analysis
         evals.add(lines.first.whiteCp);
         bestUcis.add(lines.first.best);
         seconds.add(lines.length > 1 ? lines[1].whiteCp : null);

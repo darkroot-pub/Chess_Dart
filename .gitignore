@@ -19,3 +19,16 @@ keystore.b64
 .idea/
 .vscode/
 .DS_Store
+
+# Secrets: never commit
+.env
+.env.*
+*.pem
+*.p12
+*.keystore
+supabase/.env
+supabase/.temp/
+android/app/release.jks
+android/key.properties
+keystore.b64
+*.b64

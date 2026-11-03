@@ -23,6 +23,11 @@ class EngineService {
   Future<void> _tail = Future.value();
   void Function(String line)? _onLine;
   bool available = false;
+  VoidCallback? _stateListener;
+
+  static final _fenRe = RegExp(r'^[1-8pnbrqkPNBRQK/]{15,80} [wb] (-|[KQkq]{1,4}) (-|[a-h][36]) \d{1,3} \d{1,4}$');
+  /// Only well-formed FENs ever reach the engine (a stray newline in the string would inject UCI commands).
+  static bool validFen(String fen) => _fenRe.hasMatch(fen);
 
   Future<bool> init() => _initFuture ??= _init();
 
@@ -36,6 +41,14 @@ class EngineService {
         waited += 100;
       }
       if (sf.state.value != StockfishState.ready) throw 'engine not ready';
+      // if the native engine dies later, forget it so that the next request starts a fresh one
+      _stateListener = () {
+        if (sf.state.value != StockfishState.ready && identical(_sf, sf)) {
+          available = false;
+          _initFuture = null;
+        }
+      };
+      sf.state.addListener(_stateListener!);
       final uciOk = Completer<void>();
       _sub = sf.stdout.listen((chunk) {
         for (final line in chunk.split('\n')) {
@@ -51,8 +64,9 @@ class EngineService {
       sf.stdin = 'setoption name Hash value 32';
       available = true;
     } catch (e) {
-      debugPrint('Stockfish init failed: $e');
+      if (kDebugMode) debugPrint('Engine init failed: $e');
       available = false;
+      _initFuture = null; // allow a retry instead of caching the failure forever
     }
     return available;
   }
@@ -69,7 +83,29 @@ class EngineService {
     return c.future;
   }
 
-  void _send(String cmd) => _sf!.stdin = cmd;
+  void _send(String cmd) {
+    final sf = _sf;
+    if (sf != null) sf.stdin = cmd;
+  }
+
+  /// Waits until the engine has finished whatever it was doing (isready/readyok comes after any pending bestmove),
+  /// so a late 'bestmove' from a timed-out search can never be mistaken for the answer to the next request.
+  Future<void> _drain() async {
+    final ok = Completer<void>();
+    _onLine = (l) { if (l == 'readyok' && !ok.isCompleted) ok.complete(); };
+    _send('stop');
+    _send('isready');
+    try {
+      await ok.future.timeout(const Duration(seconds: 3));
+    } catch (_) {}
+    _onLine = null;
+  }
+
+  /// Restarts the native engine (after a crash or a hung search).
+  Future<bool> restart() async {
+    await dispose();
+    return init();
+  }
 
   Future<void> newGame() async {
     if (!await init()) return;
@@ -82,8 +118,9 @@ class EngineService {
 
   /// Full-strength analysis; returns up to [multiPv] lines ordered best first.
   Future<List<EngineLine>> analyse(String fen, {int movetimeMs = 300, int multiPv = 1}) async {
-    if (!await init()) return [];
+    if (!await init() || !validFen(fen)) return [];
     return _enqueue(() async {
+      await _drain();
       _send('setoption name UCI_LimitStrength value false');
       _send('setoption name Skill Level value 20');
       _send('setoption name MultiPV value $multiPv');
@@ -92,7 +129,7 @@ class EngineService {
       final lines = <int, EngineLine>{};
       final done = Completer<void>();
       _onLine = (l) {
-        if (l.startsWith('info') && l.contains(' pv ') && l.contains(' score ')) {
+        if (l.startsWith('info') && l.contains(' pv ') && l.contains(' score ') && !l.contains('lowerbound') && !l.contains('upperbound')) {
           final t = l.split(' ');
           int mpv = 1, depth = 0;
           int? cp, mate;
@@ -118,19 +155,28 @@ class EngineService {
         }
       };
       _send('go movetime $movetimeMs');
+      var timedOut = false;
       await done.future.timeout(Duration(milliseconds: movetimeMs + 10000), onTimeout: () {
-        _send('stop');
+        timedOut = true;
       });
       _onLine = null;
+      if (timedOut) {
+        // an unfinished search is NOT a result: never classify a move from partial analysis
+        await _drain();
+        return <EngineLine>[];
+      }
       final out = lines.values.toList()..sort((a, b) => a.multipv.compareTo(b.multipv));
+      // every requested line must exist and agree on the position being analysed
+      if (out.isEmpty || out.first.pv.isEmpty) return <EngineLine>[];
       return out;
     });
   }
 
   /// Engine move for the bot, using the configured difficulty. Returns a UCI move or null.
   Future<String?> bestMove(String fen, AiLevel level) async {
-    if (!await init()) return null;
+    if (!await init() || !validFen(fen)) return null;
     return _enqueue(() async {
+      await _drain();
       _send('setoption name MultiPV value 1');
       if (level.uciElo != null) {
         _send('setoption name UCI_LimitStrength value true');
@@ -148,17 +194,23 @@ class EngineService {
         }
       };
       _send(level.depth != null ? 'go depth ${level.depth} movetime ${level.movetime}' : 'go movetime ${level.movetime}');
+      var timedOut = false;
       final r = await done.future.timeout(Duration(milliseconds: level.movetime + 10000), onTimeout: () {
-        _send('stop');
+        timedOut = true;
         return null;
       });
       _onLine = null;
+      if (timedOut) await _drain();
       return r;
     });
   }
 
   Future<void> dispose() async {
+    final l = _stateListener;
+    if (l != null) _sf?.state.removeListener(l);
+    _stateListener = null;
     await _sub?.cancel();
+    _sub = null;
     _sf?.dispose();
     _sf = null;
     _initFuture = null;

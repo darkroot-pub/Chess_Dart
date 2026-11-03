@@ -1,130 +1,206 @@
-name: Build DarkChess APK
+name: DarkChess CI and release build
 
 on:
   push:
     branches: [main, master]
+  pull_request:
   workflow_dispatch:
+    inputs:
+      allow_debug_signing:
+        description: "TEST BUILD ONLY: allow a debug-signed APK (never use for distribution)"
+        type: boolean
+        default: false
 
+# Least privilege: the workflow only needs to read the repository.
 permissions:
   contents: read
 
 concurrency:
-  group: darkchess-apk-${{ github.ref }}
+  group: darkchess-${{ github.ref }}
   cancel-in-progress: true
 
+# NOTE: third-party actions are pinned to major release tags. For maximum supply-chain safety replace each tag with
+# the full commit SHA of the release you trust (see SECURITY_AUDIT.md, "Pin actions to SHAs").
 jobs:
+  # ---------------------------------------------------------------- Flutter: dependencies, analysis, tests
+  flutter-checks:
+    name: Flutter analyze and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Repository hygiene (no secrets or signing keys committed)
+        shell: bash
+        run: |
+          set -euo pipefail
+          bad=$(git ls-files | grep -E '\.(jks|keystore|p12|pem)$|(^|/)key\.properties$|(^|/)\.env(\..*)?$' || true)
+          if [ -n "$bad" ]; then echo "Committed secret/signing files:"; echo "$bad"; exit 1; fi
+          if git grep -nEI 'BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}' -- . ':!*.md' ':!supabase/tests'; then
+            echo "Something that looks like a private key or JWT is committed."; exit 1
+          fi
+          if git grep -nI 'service_role' -- lib; then echo "service_role must never appear in the Flutter app."; exit 1; fi
+      - name: Resolve dependencies
+        run: flutter pub get
+      - name: "Dependency report (informational, lists outdated packages)"
+        run: flutter pub outdated || true
+      - name: Format (auto-applied, not a gate)
+        run: dart format lib test
+      - name: Patch legacy jcenter() in the stockfish plugin (needed for Gradle 9)
+        shell: bash
+        run: |
+          set -euo pipefail
+          F="$(find "$HOME/.pub-cache/hosted/pub.dev" -type f -path '*/stockfish-*/android/build.gradle' -print -quit)"
+          test -n "$F"
+          sed -i 's/jcenter()/mavenCentral()/g' "$F"
+      # Errors and warnings fail the build. Style-only "info" hints are reported but do not block a release.
+      - name: Static analysis
+        run: flutter analyze --no-pub --no-fatal-infos
+      - name: Unit tests
+        run: flutter test
+
+  # ---------------------------------------------------------------- Database: migrations + RLS + concurrency tests
+  sql-tests:
+    name: SQL migrations, RLS and concurrency tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run migrations twice (idempotency) and all SQL tests
+        run: bash supabase/tests/run_sql_tests.sh
+
+  # ---------------------------------------------------------------- Edge function logic tests
+  edge-function-tests:
+    name: Edge function logic tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - run: deno test --allow-net --allow-read --allow-env supabase/functions/game-action/logic_test.ts
+
+  # ---------------------------------------------------------------- Release build (signed) + signature verification
   build:
-    name: Build Android APK
+    name: Build and verify signed APKs
+    needs: [flutter-checks, sql-tests, edge-function-tests]
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 60
-
+    env:
+      ALLOW_DEBUG: ${{ github.event_name == 'workflow_dispatch' && inputs.allow_debug_signing == true }}
     steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      # Flutter must be available before generating the Android/Gradle wrapper.
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+      - name: Require all production secrets
+        shell: bash
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          missing=""
+          for v in SUPABASE_URL SUPABASE_ANON_KEY GOOGLE_WEB_CLIENT_ID; do
+            [ -n "${!v}" ] || missing="$missing $v"
+          done
+          if [ "$ALLOW_DEBUG" != "true" ]; then
+            for v in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+              [ -n "${!v}" ] || missing="$missing $v"
+            done
+          fi
+          if [ -n "$missing" ]; then
+            echo "::error::Missing GitHub Actions secrets:$missing. A production build must be signed with your release key; refusing to continue."
+            exit 1
+          fi
+          # the anon key is public by design, the service-role key must never be used here
+          case "$SUPABASE_ANON_KEY" in *service_role*) echo "::error::SUPABASE_ANON_KEY looks like a service-role key"; exit 1;; esac
+          if printf '%s' "$SUPABASE_ANON_KEY" | cut -d. -f2 | base64 -d 2>/dev/null | grep -q '"role":"service_role"'; then
+            echo "::error::SUPABASE_ANON_KEY is a service_role key. Never ship that in an app."; exit 1
+          fi
+
+      - uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
 
-      - name: Validate Flutter project root
-        run: |
-          test -f pubspec.yaml || { echo 'ERROR: pubspec.yaml must be in the repository root.'; exit 1; }
-          test -d lib || { echo 'ERROR: lib/ directory is missing.'; exit 1; }
-          test -f lib/main.dart || { echo 'ERROR: lib/main.dart is missing.'; exit 1; }
-
-      - name: Generate Android Gradle project when missing
+      - name: Generate Android project when missing
         run: |
           if [ ! -f android/gradlew ] || [ ! -f android/gradle/wrapper/gradle-wrapper.properties ]; then
-            echo 'Android Gradle wrapper is missing or incomplete; regenerating Android platform files.'
             rm -rf android
             flutter create --platforms=android --org com.darkroot --project-name darkchess .
           fi
           test -f android/gradlew
-          test -f android/gradle/wrapper/gradle-wrapper.properties
-          test -f android/settings.gradle || test -f android/settings.gradle.kts
-          test -f android/app/build.gradle || test -f android/app/build.gradle.kts
           chmod +x android/gradlew
 
-      # Set up Java only after Gradle files exist, so setup-java's Gradle cache
-      # can find gradle-wrapper.properties and does not emit the cache warning.
-      - name: Set up Java 17
-        uses: actions/setup-java@v5
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
           cache: gradle
           cache-dependency-path: android/gradle/wrapper/gradle-wrapper.properties
 
-      - name: Show build tool versions
-        run: |
-          flutter --version
-          java -version
-          ./android/gradlew -p android --version
-
-      - name: Configure Android app
-        run: python3 tools/patch_android.py .
-
-      - name: Configure release signing (optional)
+      - name: Configure release signing
+        shell: bash
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        shell: bash
         run: |
-          if [[ -n "$KEYSTORE_BASE64" && -n "$KEYSTORE_PASSWORD" && -n "$KEY_ALIAS" && -n "$KEY_PASSWORD" ]]; then
+          set -euo pipefail
+          if [ -n "$KEYSTORE_BASE64" ]; then
             mkdir -p android/app
             printf '%s' "$KEYSTORE_BASE64" | base64 --decode > android/app/release.jks
             test -s android/app/release.jks
-            cat > android/key.properties <<EOF
-          storePassword=$KEYSTORE_PASSWORD
-          keyPassword=$KEY_PASSWORD
-          keyAlias=$KEY_ALIAS
-          storeFile=release.jks
-          EOF
-            echo 'Release signing configured.'
-          else
-            echo 'Signing secrets are incomplete; using debug signing for this test build.'
+            {
+              echo "storePassword=$KEYSTORE_PASSWORD"
+              echo "keyPassword=$KEY_PASSWORD"
+              echo "keyAlias=$KEY_ALIAS"
+              echo "storeFile=release.jks"
+            } > android/key.properties
+            keytool -list -keystore android/app/release.jks -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+            echo "Release keystore decoded and verified."
           fi
 
-      - name: Print signing SHA-1 (add this to the Google Android OAuth client)
-        shell: bash
+      - name: Configure Android app
         env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-        run: |
-          if [ -f android/app/release.jks ]; then
-            keytool -list -v -keystore android/app/release.jks -storepass "$KEYSTORE_PASSWORD" | grep -E "SHA1|SHA256" || true
-          else
-            echo 'No release keystore: debug signing, SHA-1 will change every build.'
-          fi
+          REQUIRE_RELEASE_SIGNING: ${{ env.ALLOW_DEBUG == 'true' && '0' || '1' }}
+        run: python3 tools/patch_android.py .
 
-      - name: Resolve Flutter dependencies
+      - name: Resolve dependencies
         run: flutter pub get
 
-      # The stockfish 1.8.1 Android Gradle file still calls jcenter().
-      # Gradle 9 no longer provides that repository helper, so replace it
-      # in the downloaded package cache before Gradle configures the plugin.
-      - name: Patch legacy Stockfish Android repository
+      - name: Patch legacy jcenter() in the stockfish plugin (needed for Gradle 9)
         shell: bash
         run: |
           set -euo pipefail
-          STOCKFISH_GRADLE="$(find "$HOME/.pub-cache/hosted/pub.dev" -type f -path '*/stockfish-*/android/build.gradle' -print -quit)"
-          if [[ -n "$STOCKFISH_GRADLE" ]]; then
-            sed -i 's/jcenter()/mavenCentral()/g' "$STOCKFISH_GRADLE"
-            echo "Patched legacy jcenter() in: $STOCKFISH_GRADLE"
-          else
-            echo "Stockfish Android Gradle file not found in pub cache."
-            exit 1
-          fi
+          F="$(find "$HOME/.pub-cache/hosted/pub.dev" -type f -path '*/stockfish-*/android/build.gradle' -print -quit)"
+          test -n "$F"
+          sed -i 's/jcenter()/mavenCentral()/g' "$F"
 
-      - name: Analyze Dart sources
-        run: flutter analyze --no-pub
-        continue-on-error: true
-
-      - name: Build split APKs
+      - name: Build release APKs
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
@@ -134,13 +210,28 @@ jobs:
             --dart-define=SUPABASE_URL="$SUPABASE_URL" \
             --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
             --dart-define=GOOGLE_WEB_CLIENT_ID="$GOOGLE_WEB_CLIENT_ID"
-          find build/app/outputs/flutter-apk -maxdepth 1 -type f -name '*.apk' -print
           test -n "$(find build/app/outputs/flutter-apk -maxdepth 1 -type f -name '*.apk' -print -quit)"
 
-      - name: Upload APK artifacts
+      - name: Verify APK signatures
+        shell: bash
+        run: |
+          set -euo pipefail
+          APKSIGNER="$(find "${ANDROID_HOME:-$ANDROID_SDK_ROOT}/build-tools" -name apksigner -type f | sort | tail -1)"
+          test -x "$APKSIGNER"
+          for apk in build/app/outputs/flutter-apk/*.apk; do
+            echo "== $apk"
+            "$APKSIGNER" verify --verbose --print-certs "$apk" | tee /tmp/cert.txt
+            grep -q "Verified using v2 scheme (APK Signature Scheme v2): true" /tmp/cert.txt || { echo "::error::$apk is not v2-signed"; exit 1; }
+            if [ "$ALLOW_DEBUG" != "true" ] && grep -qi "CN=Android Debug" /tmp/cert.txt; then
+              echo "::error::$apk is signed with the Android DEBUG key. Refusing."; exit 1
+            fi
+            grep -E "SHA-(1|256) digest" /tmp/cert.txt | head -2
+          done
+
+      - name: Upload APKs
         uses: actions/upload-artifact@v4
         with:
-          name: DarkChess-Android-APKs
+          name: DarkChess-Android-APKs${{ env.ALLOW_DEBUG == 'true' && '-DEBUG-SIGNED-TEST-ONLY' || '' }}
           path: build/app/outputs/flutter-apk/*.apk
           if-no-files-found: error
           retention-days: 14

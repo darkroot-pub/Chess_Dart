@@ -29,6 +29,7 @@ class ChessBoardView extends StatelessWidget {
   final void Function(int sq)? onTap;
   final void Function(int from, int to)? onDrop;
   final List<int>? arrow; // [from, to]
+  final List<int>? premove; // queued pre-move [from, to], drawn in orange
   final Color arrowColor;
   final int? badgeSq;
   final String? badgeText;
@@ -52,6 +53,7 @@ class ChessBoardView extends StatelessWidget {
     this.onTap,
     this.onDrop,
     this.arrow,
+    this.premove,
     this.arrowColor = const Color(0xCC16A34A),
     this.badgeSq,
     this.badgeText,
@@ -80,6 +82,7 @@ class ChessBoardView extends StatelessWidget {
             // drawn last so a sliding piece passes over its neighbours
             if (lastTo != null) _square(lastTo!, s),
             if (arrow != null) IgnorePointer(child: CustomPaint(size: Size(side, side), painter: _ArrowPainter(_pos(arrow![0], s) + Offset(s / 2, s / 2), _pos(arrow![1], s) + Offset(s / 2, s / 2), s, arrowColor))),
+            if (premove != null) IgnorePointer(child: CustomPaint(size: Size(side, side), painter: _ArrowPainter(_pos(premove![0], s) + Offset(s / 2, s / 2), _pos(premove![1], s) + Offset(s / 2, s / 2), s, const Color(0xCCF97316)))),
             if (badgeSq != null && badgeText != null)
               Positioned(
                 left: _pos(badgeSq!, s).dx + s * 0.58,
@@ -108,6 +111,7 @@ class ChessBoardView extends StatelessWidget {
     Color bg = isLight ? theme.light : theme.dark;
     final overlays = <Widget>[];
     if (highlightLast && (sq == lastFrom || sq == lastTo)) overlays.add(Container(color: const Color(0x66F6E05E)));
+    if (premove != null && (sq == premove![0] || sq == premove![1])) overlays.add(Container(color: const Color(0x66F97316)));
     if (sq == selected) overlays.add(Container(color: const Color(0x8860A5FA)));
     if (sq == checkSq) {
       overlays.add(Container(decoration: const BoxDecoration(gradient: RadialGradient(colors: [Color(0xCCEF4444), Color(0x00EF4444)], radius: 0.8))));

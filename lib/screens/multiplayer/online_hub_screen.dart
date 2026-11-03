@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show AuthException;
 import '../../core/constants/constants.dart';
@@ -169,7 +170,7 @@ class _OnlineHubScreenState extends State<OnlineHubScreen> {
               OutlinedButton(onPressed: busy ? null : () => _run(() async => _openGame(await sb.createRoom(kTimeControls[tc].minutes, kTimeControls[tc].inc))), child: const Text('Create private room')),
               const SizedBox(height: 8),
               Row(children: [
-                Expanded(child: TextField(controller: code, textCapitalization: TextCapitalization.characters, decoration: const InputDecoration(labelText: 'Room code', isDense: true, border: OutlineInputBorder()))),
+                Expanded(child: TextField(controller: code, maxLength: 12, inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]'))], textCapitalization: TextCapitalization.characters, decoration: const InputDecoration(labelText: 'Room code', isDense: true, counterText: '', border: OutlineInputBorder()))),
                 const SizedBox(width: 8),
                 FilledButton(onPressed: busy ? null : () => _run(() async => _openGame(await sb.joinRoom(code.text))), child: const Text('Join')),
               ]),

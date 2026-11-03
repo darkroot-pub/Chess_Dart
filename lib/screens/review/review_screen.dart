@@ -104,7 +104,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
                 ? EmptyState(
                     icon: Icons.memory,
                     title: 'Analysis unavailable',
-                    message: widget.record.ucis.isEmpty ? 'This game has no moves to analyse.' : 'The Dark Chess AI engine could not start on this device.',
+                    message: widget.record.ucis.isEmpty ? 'This game has no moves to analyse.' : 'The analysis could not be completed (the engine did not answer, or the game record is invalid). Nothing was classified. You can try again.',
                     action: widget.record.ucis.isEmpty ? null : ElevatedButton(onPressed: () => _run(250), child: const Text('Try again')),
                   )
                 : _body(an!, s, app),

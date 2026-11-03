@@ -49,6 +49,14 @@ class ChessGame {
     if (!loadFen(fen)) loadFen(startFen);
   }
 
+  /// Copy of this position with [color] to move (en passant dropped). Used to preview pre-moves.
+  ChessGame withTurn(int color) {
+    final p = fen.split(' ');
+    p[1] = color == kWhite ? 'w' : 'b';
+    p[3] = '-';
+    return ChessGame.fromFen(p.join(' '));
+  }
+
   List<Move> get moveStack => _undo.map((u) => u.move).toList();
   int get plyCount => _undo.length;
   Move? get lastMove => _undo.isEmpty ? null : _undo.last.move;

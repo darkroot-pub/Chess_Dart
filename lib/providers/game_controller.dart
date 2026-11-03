@@ -91,7 +91,56 @@ class GameController extends ChangeNotifier {
 
   bool get humanTurn => mode == 'local' || game.turn == humanColor;
   bool get canPlay => !over && !paused && !thinking && humanTurn;
-  bool canDrag(int sq) => canPlay && game.board[sq] != 0 && pieceColor(game.board[sq]) == game.turn;
+  bool canDrag(int sq) =>
+      (canPlay && game.board[sq] != 0 && pieceColor(game.board[sq]) == game.turn) ||
+      (_canPremove && game.board[sq] != 0 && pieceColor(game.board[sq]) == humanColor);
+
+  // ------------------------------------------------------------ pre-moves (vs AI): queue a move while the AI thinks
+  List<int>? premove; // [from, to]
+  bool get _canPremove => mode == 'ai' && app.settings.premoves && !over && !paused && game.turn != humanColor;
+
+  void _premoveTap(int sq) {
+    if (!_canPremove) return;
+    if (selected != null && targets.contains(sq)) {
+      _setPremove(selected!, sq);
+      return;
+    }
+    final p = game.board[sq];
+    if (p != 0 && pieceColor(p) == humanColor) {
+      selected = sq;
+      targets = game.withTurn(humanColor).legalMovesFrom(sq).map((m) => m.to).toSet();
+      premove = null;
+    } else {
+      selected = null;
+      targets = {};
+      premove = null; // tapping elsewhere cancels the queued move
+    }
+    notifyListeners();
+  }
+
+  void _setPremove(int from, int to) {
+    if (!game.withTurn(humanColor).legalMovesFrom(from).any((m) => m.to == to)) {
+      selected = null;
+      targets = {};
+      notifyListeners();
+      return;
+    }
+    premove = [from, to];
+    selected = null;
+    targets = {};
+    AudioService.instance.haptic();
+    notifyListeners();
+  }
+
+  void _runPremove() {
+    if (_disposed || over || premove == null) return;
+    final pm = premove!;
+    premove = null;
+    if (!canPlay) { notifyListeners(); return; }
+    final m = game.findMove(pm[0], pm[1]); // promotion pre-moves always become a queen
+    if (m == null) { notifyListeners(); return; }
+    _apply(m);
+  }
 
   // ------------------------------------------------------------ clock
   void _tick() {
@@ -126,7 +175,7 @@ class GameController extends ChangeNotifier {
 
   // ------------------------------------------------------------ input
   void onTap(int sq) {
-    if (!canPlay) return;
+    if (!canPlay) { _premoveTap(sq); return; }
     if (selected != null && targets.contains(sq)) {
       _try(selected!, sq);
       return;
@@ -143,7 +192,11 @@ class GameController extends ChangeNotifier {
   }
 
   void onDrop(int from, int to) {
-    if (!canPlay || from == to) return;
+    if (!canPlay) {
+      if (from != to && _canPremove) _setPremove(from, to);
+      return;
+    }
+    if (from == to) return;
     _try(from, to);
   }
 
@@ -192,6 +245,7 @@ class GameController extends ChangeNotifier {
     _autosave();
     notifyListeners();
     _maybeAi();
+    if (mover != humanColor && premove != null) Future.delayed(const Duration(milliseconds: 180), _runPremove);
   }
 
   void _react(int mover, Move m) {
@@ -257,6 +311,7 @@ class GameController extends ChangeNotifier {
   }
 
   void undo() {
+    premove = null;
     if (over || game.plyCount == 0) return;
     _token++; // cancels any pending engine move
     if (thinking) EngineService.instance.stop();
@@ -341,6 +396,7 @@ class GameController extends ChangeNotifier {
   void _finish(GameResult r, String reason) {
     if (over) return;
     over = true;
+    premove = null;
     result = r;
     endReason = reason;
     thinking = false;

@@ -1,7 +1,7 @@
 #!/bin/sh
 # Generates your own release keystore. Run on your PC (needs Java), then keep the .jks safe and private.
 set -e
-read -r -p "Keystore password: " PW
+printf "Keystore password (input hidden): "; stty -echo; read -r PW; stty echo; echo
 keytool -genkeypair -keystore darkchess-release.jks -alias darkchess -keyalg RSA -keysize 2048 -validity 10000 \
   -storepass "$PW" -keypass "$PW" -dname "CN=DarkRoot, OU=DarkChess, O=DarkRoot Organizations, C=NP"
 keytool -list -v -keystore darkchess-release.jks -storepass "$PW" | grep -E "SHA1|SHA256"
