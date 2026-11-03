@@ -6,6 +6,7 @@ import '../models/models.dart';
 import '../services/audio_service.dart';
 import '../services/guardian_service.dart';
 import '../services/chess_service/chess_game.dart';
+import '../services/stockfish_service/analysis_jobs.dart';
 import '../services/stockfish_service/engine_service.dart';
 import 'app_state.dart';
 
@@ -40,6 +41,13 @@ class GameController extends ChangeNotifier {
   Timer? _timer;
   DateTime? _last;
   bool _disposed = false;
+  bool _holding = false;
+
+  void _releaseHold() {
+    if (!_holding) return;
+    _holding = false;
+    AnalysisJobs.instance.release();
+  }
   int _token = 0;
 
   TimeControl get timeControl => customTc ?? tc;
@@ -60,6 +68,8 @@ class GameController extends ChangeNotifier {
       blackMs = resume.blackMs;
     }
     _timer = Timer.periodic(const Duration(milliseconds: 100), (_) => _tick());
+    AnalysisJobs.instance.hold(); // a background analysis pauses while a game is being played
+    _holding = true;
     if (mode == 'ai') EngineService.instance.newGame();
     say(resume == null ? GEvent.greet : GEvent.tip);
     Future.microtask(_maybeAi);
@@ -396,6 +406,7 @@ class GameController extends ChangeNotifier {
   void _finish(GameResult r, String reason) {
     if (over) return;
     over = true;
+    _releaseHold(); // the game is finished: background analyses may use the engine again
     premove = null;
     result = r;
     endReason = reason;
@@ -436,6 +447,7 @@ class GameController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _releaseHold();
     _timer?.cancel();
     _token++;
     if (thinking) EngineService.instance.stop();

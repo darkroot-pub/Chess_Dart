@@ -7,6 +7,7 @@ import '../services/audio_service.dart';
 import '../services/multiplayer_service/challenge_service.dart';
 import '../services/multiplayer_service/supabase_service.dart';
 import '../services/storage_service/storage_service.dart';
+import '../services/stockfish_service/analysis_jobs.dart';
 
 class AchievementDef {
   final String id, title, desc;
@@ -37,6 +38,7 @@ class AppState extends ChangeNotifier {
 
   Future<void> init() async {
     await storage.init();
+    AnalysisJobs.instance.bind(storage);
     settings = storage.loadSettings();
     if (!storage.uiV2) {
       // one-time: switch existing installs to the new 3D pieces + Ocean board

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/app_state.dart';
 import '../../services/multiplayer_service/supabase_service.dart';
+import '../../services/stockfish_service/analysis_jobs.dart';
 import '../../widgets/cards/common.dart';
 import '../../widgets/cards/ui_kit.dart';
 import '../leaderboard/leaderboard_screen.dart';
@@ -172,7 +173,16 @@ class ProfileScreen extends StatelessWidget {
                       ),
                       if (g.mode == 'ai' || (g.mode == 'online' && g.ratingDelta != 0)) Text('${g.ratingDelta >= 0 ? '+' : ''}${g.ratingDelta}', style: TextStyle(fontWeight: FontWeight.w900, color: g.ratingDelta >= 0 ? C.success : C.error)),
                       const SizedBox(width: 6),
-                      const Icon(Icons.analytics_outlined, size: 18, color: C.text2),
+                      ListenableBuilder(
+                        listenable: AnalysisJobs.instance,
+                        builder: (_, __) {
+                          final jb = AnalysisJobs.instance.jobFor(g.id);
+                          if (jb != null && jb.active) {
+                            return SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.5, value: jb.state == JobState.queued ? null : jb.progress));
+                          }
+                          return Icon(AnalysisJobs.instance.hasResult(g.id) ? Icons.check_circle : Icons.analytics_outlined, size: 18, color: AnalysisJobs.instance.hasResult(g.id) ? C.success : C.text2);
+                        },
+                      ),
                     ]),
                   ),
                 ),

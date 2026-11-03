@@ -5,8 +5,9 @@ import '../../core/theme/app_theme.dart';
 import '../../models/models.dart';
 import '../../providers/app_state.dart';
 import '../../services/chess_service/chess_game.dart';
+import '../../services/stockfish_service/analysis_jobs.dart';
 import '../../services/stockfish_service/analysis_service.dart';
-import '../../services/stockfish_service/engine_service.dart';
+import '../../widgets/cards/analysis_waiting.dart';
 import '../../widgets/cards/common.dart';
 import '../../widgets/chessboard/chess_board.dart';
 
@@ -24,61 +25,78 @@ class ReviewScreen extends StatefulWidget {
 }
 
 class _ReviewScreenState extends State<ReviewScreen> {
+  final jobs = AnalysisJobs.instance;
   GameAnalysis? an;
-  double progress = 0;
-  bool failed = false, running = false, cancelled = false, flipped = false;
+  AnalysisJob? job;
+  bool flipped = false, _unlockChecked = false;
   int ply = 0;
   MoveClass? filter; // tapped quality row: Prev/Next jump between these moves
   bool showBest = false; // always draw the engine's best move
-  bool deep = false;
 
   @override
   void initState() {
     super.initState();
     flipped = widget.record.userColor == kBlack;
-    _run();
+    jobs.attach(widget.record.id);
+    jobs.addListener(_onJobs);
+    job = jobs.startFor(widget.record); // reuses a stored result instantly, otherwise starts (or joins) a background job
+    _sync();
   }
 
   @override
   void dispose() {
-    cancelled = true;
-    EngineService.instance.stop();
+    // The analysis is NOT cancelled here: it keeps running in the background and notifies when it is done.
+    jobs.removeListener(_onJobs);
+    jobs.detach(widget.record.id);
     super.dispose();
   }
 
-  Future<void> _run({bool deepRun = false}) async {
-    deep = deepRun;
-    setState(() {
-      running = true;
-      failed = false;
-      progress = 0;
-    });
-    final r = await AnalysisService.analyse(
-      widget.record.startFen,
-      widget.record.ucis,
-      movetimeMs: deepRun ? 9000 : 3000,
-      depth: deepRun ? 18 : 14,
-      onProgress: (p) {
-        if (mounted) setState(() => progress = p);
-      },
-      cancelled: () => cancelled,
-    );
+  void _onJobs() {
     if (!mounted) return;
-    setState(() {
-      running = false;
+    setState(_sync);
+  }
+
+  /// Pulls the newest state from the job. The previous result stays on screen while a deeper run is in progress.
+  void _sync() {
+    job = jobs.jobFor(widget.record.id) ?? job;
+    final r = job?.result;
+    if (r != null && !identical(r, an)) {
+      final first = an == null;
       an = r;
-      failed = r == null;
-      if (r != null) ply = r.plies.length;
-    });
-    if (r != null && r.plies.any((p) => p.cls == MoveClass.brilliant && p.mover == widget.record.userColor)) {
-      context.read<AppState>().unlock('brilliant');
+      if (first || ply > r.plies.length) ply = r.plies.length;
     }
+    if (an != null && !_unlockChecked) {
+      _unlockChecked = true;
+      if (an!.plies.any((p) => p.cls == MoveClass.brilliant && p.mover == widget.record.userColor)) {
+        WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) context.read<AppState>().unlock('brilliant'); });
+      }
+    }
+  }
+
+  void _retry({bool deep = false}) {
+    setState(() {
+      job = jobs.startFor(widget.record, deep: deep, force: true);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
     final s = app.settings;
+    final j = job;
+    Widget body;
+    if (an != null) {
+      body = _body(an!, s, app);
+    } else if (j != null && j.active) {
+      body = AnalysisWaiting(job: j, onBackground: () => Navigator.of(context).maybePop(), onStop: () { jobs.cancel(j.id); Navigator.of(context).maybePop(); });
+    } else {
+      body = EmptyState(
+        icon: Icons.memory,
+        title: j?.state == JobState.cancelled ? 'Analysis stopped' : 'Analysis unavailable',
+        message: widget.record.ucis.isEmpty ? 'This game has no moves to analyse.' : (j?.error ?? 'The analysis was stopped before it finished.'),
+        action: widget.record.ucis.isEmpty ? null : ElevatedButton(onPressed: _retry, child: const Text('Try again')),
+      );
+    }
     return Scaffold(
       appBar: AppBar(
         title: const Text('Game Review'),
@@ -89,31 +107,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
           }),
         ],
       ),
-      body: SafeArea(
-        child: running
-            ? Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(32),
-                  child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(Icons.analytics_outlined, size: 54, color: C.primary),
-                    const SizedBox(height: 14),
-                    const Text('Dark Chess AI is reviewing your game…', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-                    const SizedBox(height: 14),
-                    LinearProgressIndicator(value: progress, minHeight: 8, borderRadius: BorderRadius.circular(8)),
-                    const SizedBox(height: 8),
-                    Text('${(progress * 100).round()}%', style: const TextStyle(color: C.text2)),
-                  ]),
-                ),
-              )
-            : (failed || an == null)
-                ? EmptyState(
-                    icon: Icons.memory,
-                    title: 'Analysis unavailable',
-                    message: widget.record.ucis.isEmpty ? 'This game has no moves to analyse.' : 'The analysis could not be completed (the engine did not answer, or the game record is invalid). Nothing was classified. You can try again.',
-                    action: widget.record.ucis.isEmpty ? null : ElevatedButton(onPressed: () => _run(), child: const Text('Try again')),
-                  )
-                : _body(an!, s, app),
-      ),
+      body: SafeArea(child: body),
     );
   }
 
@@ -130,7 +124,17 @@ class _ReviewScreenState extends State<ReviewScreen> {
       arrow = [sqFromName(cur.bestUci!.substring(0, 2)), sqFromName(cur.bestUci!.substring(2, 4))];
     }
     final wPct = winPct(a.evals[ply]) / 100;
+    final running = job?.active ?? false;
     return ListView(padding: const EdgeInsets.all(12), children: [
+      if (running)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            LinearProgressIndicator(value: job!.progress, minHeight: 6, borderRadius: BorderRadius.circular(6)),
+            const SizedBox(height: 4),
+            Text(job!.paused ? 'Deeper analysis paused while you play' : 'Deeper analysis ${(job!.progress * 100).round()}%. You can keep browsing; the better result replaces this one.', style: const TextStyle(color: C.text2, fontSize: 12)),
+          ]),
+        ),
       Row(children: [
         Expanded(child: _acc('White', a.accWhite)),
         const SizedBox(width: 10),
@@ -246,7 +250,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
             ),
         ]),
       ),
-      OutlinedButton.icon(onPressed: deep ? null : () => _run(deepRun: true), icon: const Icon(Icons.speed), label: Text(deep ? 'Deep analysis (depth 18) done' : 'Re-analyse deeper (depth 18, slower)')),
+      OutlinedButton.icon(onPressed: (a.depth >= 18 || (job?.active ?? false)) ? null : () => _retry(deep: true), icon: const Icon(Icons.speed), label: Text(a.depth >= 18 ? 'Deep analysis (depth 18) done' : 'Re-analyse deeper (depth 18, slower)')),
     ]);
   }
 

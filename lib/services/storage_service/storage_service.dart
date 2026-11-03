@@ -41,6 +41,18 @@ class StorageService {
   Future<void> saveHistory(List<GameRecord> h) =>
       _p.setString('history', jsonEncode(h.take(200).map((e) => e.toJson()).toList()));
 
+  // ---- cached game analyses (local only, newest 40 kept) ----
+  List<String> analysisIndex() => _p.getStringList('an_index') ?? [];
+  String? loadAnalysisJson(String id) => _p.getString('an_$id');
+  Future<void> saveAnalysisJson(String id, String json) async {
+    final idx = analysisIndex()..remove(id)..add(id);
+    while (idx.length > 40) {
+      await _p.remove('an_${idx.removeAt(0)}');
+    }
+    await _p.setString('an_$id', json);
+    await _p.setStringList('an_index', idx);
+  }
+
   SavedGame? loadSavedGame() => SavedGame.decode(_p.getString('savedGame'));
   Future<void> saveSavedGame(SavedGame? g) async {
     if (g == null) {

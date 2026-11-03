@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../widgets/cards/analysis_overlay.dart';
 import '../widgets/cards/challenge_banner.dart';
 import 'nav.dart';
 import '../core/theme/app_theme.dart';
@@ -18,7 +19,7 @@ class DarkChessApp extends StatelessWidget {
         theme: AppTheme.light,
         themeMode: ThemeMode.light,
         navigatorKey: navKey,
-        builder: (context, child) => ChallengeOverlay(child: child ?? const SizedBox.shrink()),
+        builder: (context, child) => AnalysisOverlay(child: ChallengeOverlay(child: child ?? const SizedBox.shrink())),
         home: const SplashScreen(),
       );
 }
