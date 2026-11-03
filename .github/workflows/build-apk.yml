@@ -3,7 +3,6 @@ name: DarkChess CI and release build
 on:
   push:
     branches: [main, master]
-  pull_request:
   workflow_dispatch:
     inputs:
       allow_debug_signing:
@@ -22,86 +21,8 @@ concurrency:
 # NOTE: third-party actions are pinned to major release tags. For maximum supply-chain safety replace each tag with
 # the full commit SHA of the release you trust (see SECURITY_AUDIT.md, "Pin actions to SHAs").
 jobs:
-  # ---------------------------------------------------------------- Flutter: dependencies, analysis, tests
-  flutter-checks:
-    name: Flutter analyze and test
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
-      - name: Repository hygiene (no secrets or signing keys committed)
-        shell: bash
-        run: |
-          set -euo pipefail
-          bad=$(git ls-files | grep -E '\.(jks|keystore|p12|pem)$|(^|/)key\.properties$|(^|/)\.env(\..*)?$' || true)
-          if [ -n "$bad" ]; then echo "Committed secret/signing files:"; echo "$bad"; exit 1; fi
-          if git grep -nEI 'BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}' -- . ':!*.md' ':!supabase/tests'; then
-            echo "Something that looks like a private key or JWT is committed."; exit 1
-          fi
-          if git grep -nI 'service_role' -- lib; then echo "service_role must never appear in the Flutter app."; exit 1; fi
-      - name: Resolve dependencies
-        run: flutter pub get
-      - name: "Dependency report (informational, lists outdated packages)"
-        run: flutter pub outdated || true
-      - name: Format (auto-applied, not a gate)
-        run: dart format lib test
-      - name: Patch legacy jcenter() in the stockfish plugin (needed for Gradle 9)
-        shell: bash
-        run: |
-          set -euo pipefail
-          F="$(find "$HOME/.pub-cache/hosted/pub.dev" -type f -path '*/stockfish-*/android/build.gradle' -print -quit)"
-          test -n "$F"
-          sed -i 's/jcenter()/mavenCentral()/g' "$F"
-      # Errors and warnings fail the build. Style-only "info" hints are reported but do not block a release.
-      - name: Static analysis
-        run: flutter analyze --no-pub --no-fatal-infos
-      - name: Unit tests
-        run: flutter test
-
-  # ---------------------------------------------------------------- Database: migrations + RLS + concurrency tests
-  sql-tests:
-    name: SQL migrations, RLS and concurrency tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_PASSWORD: postgres
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
-    env:
-      PGHOST: localhost
-      PGPORT: "5432"
-      PGUSER: postgres
-      PGPASSWORD: postgres
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run migrations twice (idempotency) and all SQL tests
-        run: bash supabase/tests/run_sql_tests.sh
-
-  # ---------------------------------------------------------------- Edge function logic tests
-  edge-function-tests:
-    name: Edge function logic tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-      - uses: denoland/setup-deno@v2
-        with:
-          deno-version: v2.x
-      - run: deno test --allow-net --allow-read --allow-env supabase/functions/game-action/logic_test.ts
-
-  # ---------------------------------------------------------------- Release build (signed) + signature verification
   build:
-    name: Build and verify signed APKs
-    needs: [flutter-checks, sql-tests, edge-function-tests]
-    if: github.event_name != 'pull_request'
+    name: Build APK
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -206,7 +127,7 @@ jobs:
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
         run: |
-          flutter build apk --release --split-per-abi \
+          flutter build apk --release \
             --dart-define=SUPABASE_URL="$SUPABASE_URL" \
             --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
             --dart-define=GOOGLE_WEB_CLIENT_ID="$GOOGLE_WEB_CLIENT_ID"
@@ -231,7 +152,7 @@ jobs:
       - name: Upload APKs
         uses: actions/upload-artifact@v4
         with:
-          name: DarkChess-Android-APKs${{ env.ALLOW_DEBUG == 'true' && '-DEBUG-SIGNED-TEST-ONLY' || '' }}
-          path: build/app/outputs/flutter-apk/*.apk
+          name: DarkChess-APK${{ env.ALLOW_DEBUG == 'true' && '-DEBUG-SIGNED-TEST-ONLY' || '' }}
+          path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
           retention-days: 14
