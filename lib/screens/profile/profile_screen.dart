@@ -168,7 +168,7 @@ class ProfileScreen extends StatelessWidget {
                       Expanded(
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Text((g.mode == 'local' || g.mode == 'import') ? (g.result == '1-0' ? 'White won' : (g.result == '0-1' ? 'Black won' : (g.result == '1/2-1/2' ? 'Draw' : 'Game'))) + (g.mode == 'import' ? ' · ${g.white} vs ${g.black}' : ' · Pass & Play') : '${g.outcome == 1 ? 'Won' : (g.outcome == 0 ? 'Draw' : 'Lost')} vs ${g.opponent}', style: const TextStyle(fontWeight: FontWeight.w800)),
-                          Text('${g.mode == 'import' ? 'Imported · ' : g.mode == 'online' ? 'Online · ' : (g.mode == 'ai' ? 'Dark Chess AI · ' : '')}${g.reason} · ${g.date.substring(0, 10)}', style: const TextStyle(color: C.text2, fontSize: 12)),
+                          Text('${g.mode == 'import' ? 'Imported · ' : g.mode == 'lan' ? 'Hotspot · ' : g.mode == 'online' ? 'Online · ' : (g.mode == 'ai' ? 'Dark Chess AI · ' : '')}${g.reason} · ${g.date.substring(0, 10)}', style: const TextStyle(color: C.text2, fontSize: 12)),
                         ]),
                       ),
                       if (g.mode == 'ai' || (g.mode == 'online' && g.ratingDelta != 0)) Text('${g.ratingDelta >= 0 ? '+' : ''}${g.ratingDelta}', style: TextStyle(fontWeight: FontWeight.w900, color: g.ratingDelta >= 0 ? C.success : C.error)),

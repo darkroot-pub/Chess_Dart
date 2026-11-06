@@ -4,6 +4,20 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/constants/constants.dart';
 import '../../services/chess_service/chess_game.dart';
 
+/// Decode width for the 3D piece PNGs, rounded up to a multiple of 32 so the same few sizes are reused everywhere
+/// (and can be loaded ahead of time with [precachePieces]).
+int pieceDecodeWidth(double physicalPx) => ((physicalPx / 32).ceil() * 32).clamp(64, 512);
+
+/// Loads the 12 piece images at board size before a game starts, so the first moves do not stutter.
+/// Only the 3D set uses raster images; the SVG sets are tiny and load instantly.
+void precachePieces(BuildContext context, String set, double boardSide) {
+  if (set != 'lowpoly3d') return;
+  final w = pieceDecodeWidth(boardSide / 8 * 0.94 * MediaQuery.devicePixelRatioOf(context));
+  for (final k in const ['wK', 'wQ', 'wR', 'wB', 'wN', 'wP', 'bK', 'bQ', 'bR', 'bB', 'bN', 'bP']) {
+    precacheImage(ResizeImage(AssetImage('assets/pieces/lowpoly3d/$k.png'), width: w), context).catchError((_) {});
+  }
+}
+
 class PieceImage extends StatelessWidget {
   final int piece;
   final String set;
@@ -13,12 +27,16 @@ class PieceImage extends StatelessWidget {
   Widget build(BuildContext context) => set == 'lowpoly3d'
       // rendered from the 3D low-poly model (PNG, tall & narrow): sit on the square's baseline.
       // cacheWidth decodes the 512px source at on-screen size: far less memory and no decode jank.
-      ? Image.asset('assets/pieces/lowpoly3d/${pieceKey(piece)}.png', width: size, height: size, cacheWidth: (size * MediaQuery.devicePixelRatioOf(context)).ceil().clamp(32, 512), fit: BoxFit.contain, alignment: Alignment.bottomCenter, filterQuality: FilterQuality.medium, gaplessPlayback: true)
+      ? Image.asset('assets/pieces/lowpoly3d/${pieceKey(piece)}.png', width: size, height: size, cacheWidth: pieceDecodeWidth(size * MediaQuery.devicePixelRatioOf(context)), fit: BoxFit.contain, alignment: Alignment.bottomCenter, filterQuality: FilterQuality.medium, gaplessPlayback: true)
       : SvgPicture.asset('assets/pieces/$set/${pieceKey(piece)}.svg', width: size, height: size);
 }
 
 /// Interactive 8x8 board: tap-to-move, drag-and-drop, highlights, arrows and move-quality badges.
-class ChessBoardView extends StatelessWidget {
+///
+/// The screen around the board rebuilds every second for the clocks (and more often for sounds, hints, chat...).
+/// Rebuilding 64 squares each time is wasted work, so the built board is reused while everything that affects how
+/// it looks is unchanged. Callbacks are always read from the newest widget, so a reused board never calls stale code.
+class ChessBoardView extends StatefulWidget {
   final List<int> pieces;
   final bool flipped, coords, animate, highlightLast;
   final String pieceSet;
@@ -28,8 +46,8 @@ class ChessBoardView extends StatelessWidget {
   final bool Function(int sq)? canDrag;
   final void Function(int sq)? onTap;
   final void Function(int from, int to)? onDrop;
-  final List<int>? arrow; // [from, to]
-  final List<int>? premove; // queued pre-move [from, to], drawn in orange
+  final List<int>? arrow;
+  final List<int>? premove;
   final Color arrowColor;
   final int? badgeSq;
   final String? badgeText;
@@ -58,6 +76,95 @@ class ChessBoardView extends StatelessWidget {
     this.badgeSq,
     this.badgeText,
     this.badgeColor = Colors.green,
+  });
+
+  @override
+  State<ChessBoardView> createState() => _ChessBoardViewState();
+}
+
+class _ChessBoardViewState extends State<ChessBoardView> {
+  String? _sig;
+  Widget? _built;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, c) {
+      final w = widget;
+      final side = c.biggest.shortestSide;
+      final sig = [
+        side, w.flipped, w.coords, w.animate, w.highlightLast, w.pieceSet, w.theme.light.toARGB32(), w.theme.dark.toARGB32(),
+        w.selected, w.lastFrom, w.lastTo, w.checkSq, (w.targets.toList()..sort()).join(','), w.pieces.join(','),
+        w.arrow?.join(','), w.premove?.join(','), w.arrowColor.toARGB32(), w.badgeSq, w.badgeText, w.badgeColor.toARGB32(),
+        if (w.canDrag != null) [for (int i = 0; i < 64; i++) w.canDrag!(i) ? 1 : 0].join(),
+      ].join('|');
+      if (sig == _sig && _built != null) return _built!;
+      _sig = sig;
+      return _built = _BoardBody(
+        pieces: List<int>.of(w.pieces),
+        pieceSet: w.pieceSet,
+        theme: w.theme,
+        flipped: w.flipped,
+        coords: w.coords,
+        animate: w.animate,
+        highlightLast: w.highlightLast,
+        selected: w.selected,
+        lastFrom: w.lastFrom,
+        lastTo: w.lastTo,
+        checkSq: w.checkSq,
+        targets: Set<int>.of(w.targets),
+        canDrag: w.canDrag == null ? null : (sq) => widget.canDrag?.call(sq) ?? false,
+        onTap: (sq) => widget.onTap?.call(sq),
+        onDrop: (a, b) => widget.onDrop?.call(a, b),
+        arrow: w.arrow == null ? null : List<int>.of(w.arrow!),
+        premove: w.premove == null ? null : List<int>.of(w.premove!),
+        arrowColor: w.arrowColor,
+        badgeSq: w.badgeSq,
+        badgeText: w.badgeText,
+        badgeColor: w.badgeColor,
+      );
+    });
+  }
+}
+
+class _BoardBody extends StatelessWidget {
+  final List<int> pieces;
+  final bool flipped, coords, animate, highlightLast;
+  final String pieceSet;
+  final BoardTheme theme;
+  final int? selected, lastFrom, lastTo, checkSq;
+  final Set<int> targets;
+  final bool Function(int sq)? canDrag;
+  final void Function(int sq)? onTap;
+  final void Function(int from, int to)? onDrop;
+  final List<int>? arrow; // [from, to]
+  final List<int>? premove; // queued pre-move [from, to], drawn in orange
+  final Color arrowColor;
+  final int? badgeSq;
+  final String? badgeText;
+  final Color badgeColor;
+
+  const _BoardBody({
+    required this.pieces,
+    required this.pieceSet,
+    required this.theme,
+    required this.flipped,
+    required this.coords,
+    required this.animate,
+    required this.highlightLast,
+    this.selected,
+    this.lastFrom,
+    this.lastTo,
+    this.checkSq,
+    required this.targets,
+    this.canDrag,
+    this.onTap,
+    this.onDrop,
+    this.arrow,
+    this.premove,
+    required this.arrowColor,
+    this.badgeSq,
+    this.badgeText,
+    required this.badgeColor,
   });
 
   Offset _pos(int sq, double s) {

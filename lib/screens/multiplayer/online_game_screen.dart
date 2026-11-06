@@ -81,7 +81,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
     _load();
     _ch = sb.watchGame(widget.gameId, _apply, (c) { if (mounted) setState(() => connected = c); });
     _poll = Timer.periodic(const Duration(seconds: 4), (_) => _load());
-    _tick = Timer.periodic(const Duration(milliseconds: 250), (_) { if (mounted) { setState(() {}); _checkTimeout(); } });
+    _tick = Timer.periodic(const Duration(milliseconds: 500), (_) { if (mounted) { setState(() {}); _checkTimeout(); } }); // 2 redraws/s is enough for a clock; the board itself is reused unless it changed
   }
 
   @override

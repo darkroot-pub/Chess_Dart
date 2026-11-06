@@ -9,6 +9,7 @@ import '../../services/multiplayer_service/supabase_service.dart';
 import '../../widgets/cards/common.dart';
 import '../../widgets/cards/ui_kit.dart';
 import '../../widgets/chessboard/chess_board.dart';
+import '../multiplayer/lan_hub_screen.dart';
 import '../multiplayer/online_hub_screen.dart';
 import 'game_screen.dart';
 
@@ -157,6 +158,20 @@ class _PlaySetupScreenState extends State<PlaySetupScreen> {
             ]),
             const SizedBox(height: 14),
             _onlineCard(),
+            AppCard(
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LanHubScreen())),
+              child: const Row(children: [
+                IconBubble(Icons.wifi_tethering, color: C.secondary),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Hotspot / Wi-Fi game', style: TextStyle(fontWeight: FontWeight.w700)),
+                    Text('Play a friend nearby, no internet needed', style: TextStyle(color: C.text2, fontSize: 12.5)),
+                  ]),
+                ),
+                Icon(Icons.chevron_right, color: C.text2),
+              ]),
+            ),
             if (mode == 'ai') ...[
               _title(Icons.bar_chart, 'Difficulty'),
               _difficulty(),

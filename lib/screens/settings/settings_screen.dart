@@ -41,6 +41,7 @@ class SettingsPanel extends StatelessWidget {
       sw('Comments in games vs AI', s.guardianChat, (v) => s.guardianChat = v, Icons.chat_bubble_outline),
       sw('Coaching in puzzles', s.guardianPuzzles, (v) => s.guardianPuzzles = v, Icons.psychology_alt_outlined),
       sw('Guardian auto-rotates', s.guardianSpin, (v) => s.guardianSpin = v, Icons.threed_rotation),
+      sw('Taunts (playful trash talk in games vs AI)', s.guardianTaunts, (v) => s.guardianTaunts = v, Icons.local_fire_department),
       const SizedBox(height: 8),
       const Text('Board theme', style: TextStyle(fontWeight: FontWeight.w700)),
       const SizedBox(height: 8),

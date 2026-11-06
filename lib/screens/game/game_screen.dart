@@ -6,6 +6,7 @@ import '../../models/models.dart';
 import '../../providers/app_state.dart';
 import '../../providers/game_controller.dart';
 import '../../services/chess_service/chess_game.dart';
+import '../../services/lan_service.dart';
 import '../../widgets/cards/common.dart';
 import '../../widgets/cards/guardian_widgets.dart';
 import '../../widgets/chessboard/chess_board.dart';
@@ -16,13 +17,15 @@ class GameScreen extends StatelessWidget {
   final String mode;
   final int humanColor, aiLevel, tcIndex;
   final SavedGame? resume;
-  const GameScreen({super.key, required this.mode, required this.humanColor, this.aiLevel = 1, required this.tcIndex, this.resume});
+  final LanLink? link; // hotspot / Wi-Fi game: the connection to the friend
+  final String opponentName;
+  const GameScreen({super.key, required this.mode, required this.humanColor, this.aiLevel = 1, required this.tcIndex, this.resume, this.link, this.opponentName = 'Opponent'});
 
   @override
   Widget build(BuildContext context) {
     final app = context.read<AppState>();
     return ChangeNotifierProvider(
-      create: (_) => GameController(app, mode: mode, humanColor: humanColor, aiLevelIndex: aiLevel, tcIndex: tcIndex, resume: resume),
+      create: (_) => GameController(app, mode: mode, humanColor: humanColor, aiLevelIndex: aiLevel, tcIndex: tcIndex, resume: resume, link: link, opponentName: opponentName),
       child: const _GameView(),
     );
   }
@@ -48,6 +51,9 @@ class _GameViewState extends State<_GameView> {
   void initState() {
     super.initState();
     context.read<GameController>().askPromotion = _askPromotion;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) precachePieces(context, context.read<AppState>().settings.pieceSet, MediaQuery.sizeOf(context).width - 34);
+    });
   }
 
   Future<int?> _askPromotion(int color) {
@@ -67,6 +73,40 @@ class _GameViewState extends State<_GameView> {
         ]),
       ),
     );
+  }
+
+  bool _drawDialogOpen = false;
+
+  /// Hotspot games: a draw offer from the friend, and one-line notices such as "declined the draw".
+  void _lanExtras(GameController c) {
+    final n = c.lanNotice;
+    if (n != null) {
+      c.lanNotice = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) snack(context, n);
+      });
+    }
+    if (c.drawOfferIncoming && !_drawDialogOpen) {
+      _drawDialogOpen = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
+        final yes = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (d) => AlertDialog(
+            backgroundColor: C.surface,
+            title: const Text('Draw offer'),
+            content: Text('${c.opponentName} offers a draw.'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Decline')),
+              TextButton(onPressed: () => Navigator.pop(d, true), child: const Text('Accept')),
+            ],
+          ),
+        );
+        _drawDialogOpen = false;
+        if (mounted) c.answerDrawLan(yes ?? false);
+      });
+    }
   }
 
   void _maybeShowOver(GameController c) {
@@ -135,6 +175,7 @@ class _GameViewState extends State<_GameView> {
     final app = context.watch<AppState>();
     final s = app.settings;
     _maybeShowOver(c);
+    if (c.isLan) _lanExtras(c);
     final g = c.game;
     final topColor = c.flipped ? kWhite : kBlack, botColor = 1 - topColor;
     final last = g.lastMove;
@@ -158,12 +199,12 @@ class _GameViewState extends State<_GameView> {
             ? 'Paused'
             : c.thinking
                 ? 'Dark Chess AI is thinking…'
-                : (c.premove != null ? 'Pre-move queued. Tap to cancel.' : (c.hintText ?? (g.inCheck ? 'Check!' : (c.humanTurn ? 'Your move' : ''))));
+                : (c.premove != null ? 'Pre-move queued. Tap to cancel.' : (c.hintText ?? (g.inCheck ? 'Check!' : (c.humanTurn ? 'Your move' : (c.isLan && !c.over ? '${c.opponentName}\'s move' : '')))));
 
     return Scaffold(
       appBar: AppBar(
         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(c.mode == 'ai' ? 'vs Dark Chess AI · ${c.level!.name}' : 'Pass & Play', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+          Text(c.mode == 'ai' ? 'vs Dark Chess AI · ${c.level!.name}' : (c.isLan ? 'Hotspot · vs ${c.opponentName}' : 'Pass & Play'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
           Text(c.timeControl.untimed ? 'Unlimited' : '${c.timeControl.label} · ${c.timeControl.category}', style: const TextStyle(fontSize: 12, color: C.text2)),
         ]),
         actions: [
@@ -225,31 +266,7 @@ class _GameViewState extends State<_GameView> {
               ]),
             ),
             if (c.mode == 'ai' && s.guardianChat) GuardianTalk(text: c.guardianText, seq: c.guardianSeq, onTap: c.chat),
-            Expanded(
-              child: Container(
-                width: double.infinity,
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.all(12),
-                decoration: cardDeco(radius: 18),
-                child: g.sanList.isEmpty
-                    ? const Center(child: Text('Moves will appear here', style: TextStyle(color: C.text2)))
-                    : Builder(builder: (_) {
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (_scroll.hasClients) _scroll.jumpTo(_scroll.position.maxScrollExtent);
-                        });
-                        return SingleChildScrollView(
-                          controller: _scroll,
-                          child: Wrap(spacing: 10, runSpacing: 6, children: [
-                            for (int i = 0; i < g.sanList.length; i++)
-                              RichText(text: TextSpan(style: const TextStyle(color: C.text, fontSize: 14.5), children: [
-                                if (i % 2 == 0) TextSpan(text: '${i ~/ 2 + 1}. ', style: const TextStyle(color: C.text2)),
-                                TextSpan(text: g.sanList[i], style: TextStyle(fontWeight: i == g.sanList.length - 1 ? FontWeight.w900 : FontWeight.w600, color: i == g.sanList.length - 1 ? C.primary : C.text)),
-                              ])),
-                          ]),
-                        );
-                      }),
-              ),
-            ),
+            Expanded(child: _MoveList(scroll: _scroll)),
             Container(
               decoration: cardDeco(),
               padding: const EdgeInsets.symmetric(vertical: 6),
@@ -257,18 +274,20 @@ class _GameViewState extends State<_GameView> {
                 _Act(Icons.flag_outlined, 'Resign', c.over ? null : () async {
                   if (await _confirm('Resign?', 'You will lose this game.')) c.resign();
                 }),
-                _Act(Icons.lightbulb_outline, 'Hint', c.canPlay ? c.getHint : null),
-                _Act(Icons.undo, 'Undo', (!c.over && g.plyCount > 0) ? c.undo : null),
+                if (!c.isLan) _Act(Icons.lightbulb_outline, 'Hint', c.canPlay ? c.getHint : null),
+                if (!c.isLan) _Act(Icons.undo, 'Undo', (!c.over && g.plyCount > 0) ? c.undo : null),
                 _Act(Icons.swap_vert, 'Flip', c.flip),
-                _Act(Icons.handshake_outlined, 'Draw', c.over ? null : () async {
-                  if (c.mode == 'ai') {
+                _Act(Icons.handshake_outlined, 'Draw', (c.over || c.drawOfferSent) ? null : () async {
+                  if (c.isLan) {
+                    c.offerDrawLan();
+                  } else if (c.mode == 'ai') {
                     final msg = await c.offerDrawToAi();
                     if (mounted && msg.isNotEmpty) snack(context, msg);
                   } else if (await _confirm('Draw offer', 'Does the opponent accept the draw?')) {
                     c.agreeDraw();
                   }
                 }),
-                _Act(c.paused ? Icons.play_arrow : Icons.pause, c.paused ? 'Resume' : 'Pause', c.over ? null : c.togglePause),
+                if (!c.isLan) _Act(c.paused ? Icons.play_arrow : Icons.pause, c.paused ? 'Resume' : 'Pause', c.over ? null : c.togglePause),
               ]),
             ),
             const SizedBox(height: 8),
@@ -303,6 +322,49 @@ class _Act extends StatelessWidget {
           Text(label, style: TextStyle(fontSize: 11, color: on ? C.text : C.border, fontWeight: FontWeight.w700)),
         ]),
       ),
+    );
+  }
+}
+
+/// The list of moves. It only rebuilds when a move is added or taken back, not on every clock tick.
+class _MoveList extends StatelessWidget {
+  final ScrollController scroll;
+  const _MoveList({required this.scroll});
+
+  @override
+  Widget build(BuildContext context) {
+    return Selector<GameController, int>(
+      selector: (_, c) => c.game.sanList.length,
+      builder: (context, count, _) {
+        final sans = context.read<GameController>().game.sanList;
+        return RepaintBoundary(
+          child: Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(12),
+            decoration: cardDeco(radius: 18),
+            child: sans.isEmpty
+                ? const Center(child: Text('Moves will appear here', style: TextStyle(color: C.text2)))
+                : Builder(builder: (_) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (scroll.hasClients) scroll.jumpTo(scroll.position.maxScrollExtent);
+                    });
+                    return SingleChildScrollView(
+                      controller: scroll,
+                      child: Wrap(spacing: 10, runSpacing: 6, children: [
+                        for (int i = 0; i < sans.length; i++)
+                          RichText(
+                            text: TextSpan(style: const TextStyle(color: C.text, fontSize: 14.5), children: [
+                              if (i % 2 == 0) TextSpan(text: '${i ~/ 2 + 1}. ', style: const TextStyle(color: C.text2)),
+                              TextSpan(text: sans[i], style: TextStyle(fontWeight: i == sans.length - 1 ? FontWeight.w900 : FontWeight.w600, color: i == sans.length - 1 ? C.primary : C.text)),
+                            ]),
+                          ),
+                      ]),
+                    );
+                  }),
+          ),
+        );
+      },
     );
   }
 }
